@@ -16,6 +16,7 @@ Global $aSearchTitles[1]
 Global $sCurrentKeyword = ""
 Global $iTotalLoaded = 0
 Global $bIsSearching = False
+Global $bEndReached = False
 
 Global $mainform
 Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
@@ -216,7 +217,7 @@ Func _ShowSearch()
 
         Local $iIndex = _GUICtrlListBox_GetCurSel($lst_results)
         Local $iCount = _GUICtrlListBox_GetCount($lst_results)
-        If $iIndex <> -1 And $iIndex = $iCount - 1 And Not $bIsSearching And $sCurrentKeyword <> "" And Not _IsPressed("0D", $dll) Then
+        If $iIndex <> -1 And $iIndex = $iCount - 1 And Not $bIsSearching And $sCurrentKeyword <> "" And Not _IsPressed("0D", $dll) And Not $bEndReached Then
             _SearchYouTube($sCurrentKeyword, True)
         EndIf
 
@@ -250,8 +251,9 @@ Func _SearchYouTube($sKeyword, $bAppend)
     Local $iFetch = 20
     Local $iEnd = $iStart + $iFetch - 1
 
-    Local $sSearchQuery = "ytsearch" & $iEnd & ":" & $sKeyword
-    Local $sParams = '--flat-playlist --print "%(title)s|%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --encoding utf-8 "' & $sSearchQuery & '"'
+    Local $sEscapedKeyword = StringReplace($sKeyword, '"', '\"')
+    Local $sSearchQuery = "ytsearch" & $iEnd & ":" & $sEscapedKeyword
+    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "I:%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchQuery & '"'
 
     Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
 
@@ -269,28 +271,38 @@ Func _SearchYouTube($sKeyword, $bAppend)
         Global $aSearchIds[1]
         Global $aSearchTitles[1]
         $iTotalLoaded = 0
+        $bEndReached = False
     EndIf
+
+    Local $iLoadedBefore = $iTotalLoaded
 
     Local $aLines = StringSplit(StringStripCR($sOutput), @LF)
 
     If $aLines[0] > 0 Then
         Local $iCount = UBound($aSearchIds)
+        Local $sLastTitle = ""
         For $i = 1 To $aLines[0]
             Local $sLine = $aLines[$i]
-            If $sLine = "" Then ContinueLoop
-
-            Local $aItem = StringSplit($sLine, "|")
-            If $aItem[0] >= 2 Then
+            If StringLeft($sLine, 2) = "T:" Then
+                $sLastTitle = StringTrimLeft($sLine, 2)
+            ElseIf StringLeft($sLine, 2) = "I:" And $sLastTitle <> "" Then
+                Local $sId = StringTrimLeft($sLine, 2)
+                
                 $iTotalLoaded += 1
-                _GUICtrlListBox_AddString($lst_results, $iTotalLoaded & ". " & $aItem[1])
+                _GUICtrlListBox_AddString($lst_results, $iTotalLoaded & ". " & $sLastTitle)
 
                 ReDim $aSearchIds[$iCount + 1]
                 ReDim $aSearchTitles[$iCount + 1]
-                $aSearchIds[$iCount] = $aItem[2]
-                $aSearchTitles[$iCount] = $aItem[1]
+                $aSearchIds[$iCount] = $sId
+                $aSearchTitles[$iCount] = $sLastTitle
                 $iCount += 1
+                $sLastTitle = ""
             EndIf
         Next
+    EndIf
+
+    If $iTotalLoaded = $iLoadedBefore And $bAppend Then
+        $bEndReached = True
     EndIf
 
     If $iTotalLoaded = 0 And Not $bAppend Then
