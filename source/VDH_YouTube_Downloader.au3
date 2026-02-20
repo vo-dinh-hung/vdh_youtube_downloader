@@ -57,6 +57,8 @@ Global $menu_exit = GUICtrlCreateMenuItem("E&xit", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
 
+_AutoDetectClipboardLink()
+
 While 1
     Local $msg = GUIGetMsg()
     Switch $msg
@@ -612,5 +614,55 @@ Func _Show_Contact_Window()
             Case $email
                 ShellExecute("https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=vodinhhungtnlg@gmail.com")
         EndSwitch
+    WEnd
+EndFunc
+Func _GetYoutubeID($url)
+    Local $id = ""
+    If StringInStr($url, "v=") Then
+        $id = StringRegExpReplace($url, ".*v=([^&]*).*", "$1")
+    ElseIf StringInStr($url, "youtu.be/") Then
+        $id = StringRegExpReplace($url, ".*/([^?]*).*", "$1")
+    EndIf
+    Return $id
+EndFunc
+
+Func _AutoDetectClipboardLink()
+    Local $clip = ClipGet()
+    If Not (StringInStr($clip, "youtube.com") Or StringInStr($clip, "youtu.be")) Then Return
+
+    ; Check if focus is in an edit box (per requirement)
+    Local $focus = ControlGetFocus($mainform)
+    If StringInStr($focus, "Edit") Then Return
+
+    Local $hAutoGui = GUICreate("Link detected", 300, 150, -1, -1, BitOR($WS_CAPTION, $WS_POPUP, $WS_SYSMENU), -1, $mainform)
+    GUISetBkColor(0xFFFFFF)
+    GUICtrlCreateLabel("A YouTube link was found in your clipboard. What would you like to do?", 10, 10, 280, 40)
+
+    Local $btn_Play = GUICtrlCreateButton("Play", 10, 60, 135, 30)
+    Local $btn_DL = GUICtrlCreateButton("Download", 155, 60, 135, 30)
+    Local $btn_Cancel = GUICtrlCreateButton("Cancel", 10, 100, 280, 30)
+
+    GUISetState(@SW_SHOW, $hAutoGui)
+
+    While 1
+        Local $nMsg = GUIGetMsg()
+        Select
+            Case $nMsg = $GUI_EVENT_CLOSE Or $nMsg = $btn_Cancel
+                GUIDelete($hAutoGui)
+                ExitLoop
+            Case $nMsg = $btn_Play
+                GUIDelete($hAutoGui)
+                playmedia($clip)
+                ExitLoop
+            Case $nMsg = $btn_DL
+                GUIDelete($hAutoGui)
+                Local $id = _GetYoutubeID($clip)
+                If $id <> "" Then
+                    _ShowDownloadDialog($id)
+                Else
+                    MsgBox(16, "Error", "Could not extract video ID from link.")
+                EndIf
+                ExitLoop
+        EndSelect
     WEnd
 EndFunc
