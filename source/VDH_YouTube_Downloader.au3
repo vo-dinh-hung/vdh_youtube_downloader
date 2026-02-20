@@ -37,7 +37,7 @@ GUISetState()
 RunWait(@ComSpec & " /c """ & $YT_DLP_PATH & """ -U", @ScriptDir, @SW_HIDE)
 GUIDelete($lding)
 
-$mainform = GUICreate("VDH_YouTube_Downloader+", 300, 250)
+$mainform = GUICreate("VDH_YouTube_Downloader version" & $version, 300, 250)
 GUISetBkColor($COLOR_BLUE)
 
 GUICtrlCreateLabel("Press the Alt key to go the help menu, then press tab to quick access.", 10, 20, 280, 30, $SS_CENTER)
