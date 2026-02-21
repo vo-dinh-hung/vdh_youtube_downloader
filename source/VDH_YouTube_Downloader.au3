@@ -567,7 +567,7 @@ EndFunc
 Func _Show_About_Window()
     Local $gui = GUICreate("About", 400, 300)
     GUISetBkColor($COLOR_BLUE)
-    Local $txtAbout = FileExists(@ScriptDir & "\data\docs\about.txt") ? FileRead(@ScriptDir & "\data\docs\about.txt") : "VDH YouTube Downloader"
+    Local $txtAbout = FileExists(@ScriptDir & "\docs\about.txt") ? FileRead(@ScriptDir & "\docs\about.txt") : "VDH YouTube Downloader"
     GUICtrlCreateEdit($txtAbout, 10, 10, 380, 280, BitOR($ES_READONLY, $WS_VSCROLL))
     GUISetState(@SW_SHOW, $gui)
 
@@ -582,7 +582,7 @@ EndFunc
 Func _Show_Readme_Window()
     Local $gui = GUICreate("Read Me", 400, 300)
     GUISetBkColor($COLOR_BLUE)
-    Local $txtRead = FileExists(@ScriptDir & "\data\docs\readme.txt") ? FileRead(@ScriptDir & "\data\docs\readme.txt") : "Read Me"
+    Local $txtRead = FileExists(@ScriptDir & "\docs\readme.txt") ? FileRead(@ScriptDir & "\docs\readme.txt") : "Read Me"
     GUICtrlCreateEdit($txtRead, 10, 10, 380, 280, BitOR($ES_READONLY, $WS_VSCROLL))
     GUISetState(@SW_SHOW, $gui)
 
