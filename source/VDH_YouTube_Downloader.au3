@@ -23,9 +23,16 @@ Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
 Global $linkedit, $play_btn, $online_play_btn
 Global $inp_search, $btn_search_go, $lst_results
 Global $hCurrentSubGui = 0
-Global $hResultsGui = 0 ; Biến mới cho cửa sổ kết quả
-Global $hFavoritesGui = 0 ; Biến mới cho cửa sổ yêu thích
+Global $hResultsGui = 0 
+Global $hFavoritesGui = 0 
+Global $hHistoryGui = 0
 Global $FAVORITES_FILE = @ScriptDir & "\favorites.dat"
+Global $HISTORY_FILE = @ScriptDir & "\watch_history.dat"
+
+; Migrate old history if it exists
+If FileExists(@ScriptDir & "\history.dat") And Not FileExists($HISTORY_FILE) Then
+    FileMove(@ScriptDir & "\history.dat", $HISTORY_FILE)
+EndIf
 
 If Not FileExists("download") Then DirCreate("download")
 
@@ -49,7 +56,8 @@ GUICtrlSetColor(-1, 0xFFFFFF)
 Global $btn_Menu_DL = GUICtrlCreateButton("&Download YouTube link", 50, 70, 200, 40)
 Global $btn_Menu_PL = GUICtrlCreateButton("&Play YouTube link", 50, 120, 200, 40)
 Global $btn_Menu_SC = GUICtrlCreateButton("&Search on YouTube", 50, 170, 200, 40)
-Global $btn_Menu_FV = GUICtrlCreateButton("&Favorite Video", 50, 210, 200, 40)
+Global $btn_Menu_FV = GUICtrlCreateButton("&Favorite Video", 50, 210, 100, 40)
+Global $btn_Menu_HS = GUICtrlCreateButton("&Watch History", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
 Global $menu_about = GUICtrlCreateMenuItem("&About", $menu)
@@ -80,6 +88,9 @@ While 1
 
         Case $btn_Menu_FV
             _ShowFavorites()
+
+        Case $btn_Menu_HS
+            _ShowHistory()
 
         Case $menu_about
             _Show_About_Window()
@@ -359,6 +370,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
                 ReDim $aSearchTitles[$iCount + 1]
                 $aSearchIds[$iCount] = $sId
                 $aSearchTitles[$iCount] = $sLastTitle
+                
                 $iCount += 1
                 $sLastTitle = ""
             EndIf
@@ -401,8 +413,10 @@ Func _ShowContextMenu($bIsFavContext = False)
     Local $btn_Copy = GUICtrlCreateButton("Copy Link", 10, 205, 230, 30)
 
     Local $btn_Fav
-    If $bIsFavContext Then
+    If $bIsFavContext = 1 Then
         $btn_Fav = GUICtrlCreateButton("Remove from Favorite", 10, 235, 230, 30)
+    ElseIf $bIsFavContext = 2 Then
+        $btn_Fav = GUICtrlCreateButton("Delete from History", 10, 235, 230, 30)
     Else
         $btn_Fav = GUICtrlCreateButton("Add to Favorite", 10, 235, 230, 30)
     EndIf
@@ -417,9 +431,14 @@ Func _ShowContextMenu($bIsFavContext = False)
                 ExitLoop
             Case $btn_Fav
                 GUIDelete($hMenuGui)
-                If $bIsFavContext Then
+                If $bIsFavContext = 1 Then
                     If _RemoveFavorite($aSearchIds[$iIndex + 1]) Then
                         MsgBox(64, "Success", "Removed from favorites successfully!")
+                        Return "REFRESH"
+                    EndIf
+                ElseIf $bIsFavContext = 2 Then
+                    If _RemoveHistory($aSearchIds[$iIndex + 1]) Then
+                        MsgBox(64, "Success", "Removed from history successfully!")
                         Return "REFRESH"
                     EndIf
                 Else
@@ -436,7 +455,7 @@ Func _ShowContextMenu($bIsFavContext = False)
                 ExitLoop
             Case $btn_DL
                 GUIDelete($hMenuGui)
-                _ShowDownloadDialog($aSearchIds[$iIndex + 1])
+                _ShowDownloadDialog($aSearchIds[$iIndex + 1], $sTitle)
                 ExitLoop
             Case $btn_Channel
                 GUIDelete($hMenuGui)
@@ -490,6 +509,8 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
         Local $sID = $aSearchIds[$iCurrentIndex + 1]
         Local $sTitle = $aSearchTitles[$iCurrentIndex + 1]
 
+        _AddHistory($sID, $sTitle) ; Save to history when playing
+
         ; Show Loading Dialog (Matching Searching style)
         Local $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
         GUICtrlCreateLabel("Loading YouTube Video, please wait...", 10, 25, 230, 30, $SS_CENTER)
@@ -526,7 +547,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
     WEnd
 EndFunc
 
-Func _ShowDownloadDialog($sID)
+Func _ShowDownloadDialog($sID, $sTitle)
     Local $sUrl = "https://www.youtube.com/watch?v=" & $sID
     Local $hDLGui = GUICreate("Download Options", 300, 150, -1, -1, -1, -1)
     GUICtrlCreateLabel("Select Format:", 10, 20, 280, 20)
@@ -580,6 +601,10 @@ Func playmedia($url)
     $dlink = StringStripWS($dlink, 3)
 
     If $dlink <> "" Then
+        Local $id = _GetYoutubeID($url)
+        Local $sTitle = _GetYoutubeTitle($url)
+        If $sTitle = "" Then $sTitle = "YouTube Video"
+        _AddHistory($id, $sTitle)
         _PlayInternal($dlink, "YouTube Player", False, $hLoading, False)
     Else
         If $hLoading <> 0 Then GUIDelete($hLoading)
@@ -602,6 +627,10 @@ Func playaudio($url)
     $dlink = StringStripWS($dlink, 3)
 
     If $dlink <> "" Then
+        Local $id = _GetYoutubeID($url)
+        Local $sTitle = _GetYoutubeTitle($url)
+        If $sTitle = "" Then $sTitle = "YouTube Audio"
+        _AddHistory($id, $sTitle)
         _PlayInternal($dlink, "YouTube Audio Player", True, $hLoading, False)
     Else
         If $hLoading <> 0 Then GUIDelete($hLoading)
@@ -877,19 +906,34 @@ Func _GetYoutubeID($url)
     Return $id
 EndFunc
 
-Func _AddFavorite($sID, $sTitle)
-    Local $hFile = FileOpen($FAVORITES_FILE, 1 + 8) ; 1 = Append, 8 = Create directory if not exists
-    If $hFile = -1 Then
-        MsgBox(16, "Error", "Cannot open favorites file.")
-        Return
-    EndIf
-    FileWriteLine($hFile, $sID & "|" & $sTitle)
-    FileClose($hFile)
-    MsgBox(64, "Success", "Added to favorites successfully!")
+Func _GetYoutubeTitle($url)
+    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --encoding utf-8 --get-title "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    Local $bData = Binary("")
+    While ProcessExists($pid)
+        $bData &= StdoutRead($pid, False, True)
+        Sleep(10)
+    WEnd
+    $bData &= StdoutRead($pid, False, True)
+    Return StringStripWS(BinaryToString($bData, 4), 3)
 EndFunc
 
-Func _RemoveFavorite($sID)
-    Local $sContent = FileRead($FAVORITES_FILE)
+Func _AddHistory($sID, $sTitle)
+    If $sID = "" Or $sTitle = "" Then Return
+
+    ; Prevent duplicates (optional but good for history)
+    Local $sContent = FileRead($HISTORY_FILE)
+    If StringInStr($sContent, $sID & "|") Then
+        _RemoveHistory($sID) ; Remove old entry to move it to the top
+    EndIf
+
+    Local $hFile = FileOpen($HISTORY_FILE, 1 + 8 + 256) ; 1=Append, 8=DirCreate, 256=UTF8
+    If $hFile = -1 Then Return
+    FileWriteLine($hFile, $sID & "|" & $sTitle)
+    FileClose($hFile)
+EndFunc
+
+Func _RemoveHistory($sID)
+    Local $sContent = FileRead(FileOpen($HISTORY_FILE, 0 + 256)) ; Read as UTF-8
     Local $aLines = StringSplit(StringStripCR($sContent), @LF)
     Local $sNewContent = ""
     Local $bRemoved = False
@@ -905,7 +949,53 @@ Func _RemoveFavorite($sID)
     Next
 
     If $bRemoved Then
-        Local $hFile = FileOpen($FAVORITES_FILE, 2) ; 2 = Write mode (erase existing)
+        Local $hFile = FileOpen($HISTORY_FILE, 2 + 256) ; 2=Write, 256=UTF8
+        FileWrite($hFile, $sNewContent)
+        FileClose($hFile)
+        Return True
+    EndIf
+    Return False
+EndFunc
+
+Func _ClearHistory()
+    Local $hFile = FileOpen($HISTORY_FILE, 2 + 256) ; 2=Write, 256=UTF8
+    If $hFile <> -1 Then
+        FileWrite($hFile, "")
+        FileClose($hFile)
+        Return True
+    EndIf
+    Return False
+EndFunc
+
+Func _AddFavorite($sID, $sTitle)
+    Local $hFile = FileOpen($FAVORITES_FILE, 1 + 8 + 256) ; 1=Append, 8=DirCreate, 256=UTF8
+    If $hFile = -1 Then
+        MsgBox(16, "Error", "Cannot open favorites file.")
+        Return
+    EndIf
+    FileWriteLine($hFile, $sID & "|" & $sTitle)
+    FileClose($hFile)
+    MsgBox(64, "Success", "Added to favorites successfully!")
+EndFunc
+
+Func _RemoveFavorite($sID)
+    Local $sContent = FileRead(FileOpen($FAVORITES_FILE, 0 + 256)) ; Read as UTF-8
+    Local $aLines = StringSplit(StringStripCR($sContent), @LF)
+    Local $sNewContent = ""
+    Local $bRemoved = False
+
+    For $i = 1 To $aLines[0]
+        If $aLines[$i] = "" Then ContinueLoop
+        Local $aParts = StringSplit($aLines[$i], "|")
+        If $aParts[0] >= 1 And $aParts[1] = $sID Then
+            $bRemoved = True
+            ContinueLoop
+        EndIf
+        $sNewContent &= $aLines[$i] & @CRLF
+    Next
+
+    If $bRemoved Then
+        Local $hFile = FileOpen($FAVORITES_FILE, 2 + 256) ; 2=Write, 256=UTF8
         FileWrite($hFile, $sNewContent)
         FileClose($hFile)
         Return True
@@ -969,7 +1059,7 @@ EndFunc
 
 Func _LoadFavorites()
     GUICtrlSetData($lst_results, "")
-    Local $hFile = FileOpen($FAVORITES_FILE, 0) ; 0 = Read
+    Local $hFile = FileOpen($FAVORITES_FILE, 0 + 256) ; Read as UTF-8
     Global $aSearchIds[1]
     Global $aSearchTitles[1]
     $iTotalLoaded = 0
@@ -996,6 +1086,109 @@ Func _LoadFavorites()
 
     If $iTotalLoaded = 0 Then
         MsgBox(64, "Info", "No favorite videos yet.")
+    EndIf
+EndFunc
+
+Func _ShowHistory()
+    GUISetState(@SW_HIDE, $mainform)
+
+    $hHistoryGui = GUICreate("Watch History", 400, 480)
+    GUISetBkColor($COLOR_BLUE)
+    $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
+    Local $btn_clear_all = GUICtrlCreateButton("&Clear all history", 10, 400, 380, 30)
+    Local $btn_go_back = GUICtrlCreateButton("&go back", 10, 440, 380, 30)
+
+    Local $dummy_copy = GUICtrlCreateDummy()
+    Local $dummy_browser = GUICtrlCreateDummy()
+    Local $dummy_channel = GUICtrlCreateDummy()
+    Local $aAccel[3][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel]]
+    GUISetAccelerators($aAccel, $hHistoryGui)
+
+    GUISetState(@SW_SHOW, $hHistoryGui)
+
+    _LoadHistory()
+
+    While 1
+        Local $nMsg = GUIGetMsg()
+
+        If _IsPressed("0D", $dll) And WinActive($hHistoryGui) Then
+            If ControlGetHandle($hHistoryGui, "", ControlGetFocus($hHistoryGui)) = GUICtrlGetHandle($lst_results) Then
+                Local $oldResultsGui = $hResultsGui
+                $hResultsGui = $hHistoryGui
+                Local $res = _ShowContextMenu(2) ; 2 = History Context
+                $hResultsGui = $oldResultsGui
+                
+                If $res = "REFRESH" Then
+                    _LoadHistory()
+                EndIf
+
+                Do
+                    Sleep(10)
+                Until Not _IsPressed("0D", $dll)
+            EndIf
+        EndIf
+
+        Switch $nMsg
+            Case $GUI_EVENT_CLOSE, $btn_go_back
+                GUIDelete($hHistoryGui)
+                GUISetState(@SW_SHOW, $mainform)
+                Return
+            Case $btn_clear_all
+                If MsgBox(36, "Confirm", "Are you sure you want to clear all history?") = 6 Then
+                    _ClearHistory()
+                    _LoadHistory()
+                EndIf
+            Case $dummy_copy
+                _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))
+            Case $dummy_browser
+                _Action_OpenBrowser(_GUICtrlListBox_GetCurSel($lst_results))
+            Case $dummy_channel
+                _Action_GoChannel(_GUICtrlListBox_GetCurSel($lst_results))
+        EndSwitch
+    WEnd
+EndFunc
+
+Func _LoadHistory()
+    GUICtrlSetData($lst_results, "")
+    If Not FileExists($HISTORY_FILE) Then Return
+
+    Local $hFile = FileOpen($HISTORY_FILE, 0 + 256) ; Read as UTF-8
+    Local $sContent = FileRead($hFile)
+    FileClose($hFile)
+
+    If $sContent = "" Then 
+        MsgBox(64, "Info", "No history yet.")
+        Return
+    EndIf
+
+    Local $aHistoryLines = StringSplit(StringStripCR($sContent), @LF)
+    Global $aSearchIds[1]
+    Global $aSearchTitles[1]
+    $iTotalLoaded = 0
+    $bEndReached = True 
+
+    ; Show from newest to oldest
+    For $i = $aHistoryLines[0] To 1 Step -1
+        Local $sLine = $aHistoryLines[$i]
+        If $sLine = "" Then ContinueLoop
+        
+        Local $iPos = StringInStr($sLine, "|")
+        If $iPos > 0 Then
+            Local $sID = StringLeft($sLine, $iPos - 1)
+            Local $sTitle = StringTrimLeft($sLine, $iPos)
+            
+            $iTotalLoaded += 1
+            _GUICtrlListBox_AddString($lst_results, $iTotalLoaded & ". " & $sTitle)
+            
+            ReDim $aSearchIds[$iTotalLoaded + 1]
+            ReDim $aSearchTitles[$iTotalLoaded + 1]
+            $aSearchIds[$iTotalLoaded] = $sID
+            $aSearchTitles[$iTotalLoaded] = $sTitle
+        EndIf
+    Next
+
+    If $iTotalLoaded = 0 Then
+        MsgBox(64, "Info", "No history found.")
     EndIf
 EndFunc
 
@@ -1031,7 +1224,8 @@ Func _AutoDetectClipboardLink()
                 GUIDelete($hAutoGui)
                 Local $id = _GetYoutubeID($clip)
                 If $id <> "" Then
-                    _ShowDownloadDialog($id)
+                    Local $sTitle = _GetYoutubeTitle($clip)
+                    _ShowDownloadDialog($id, $sTitle)
                 Else
                     MsgBox(16, "Error", "Could not extract video ID from link.")
                 EndIf
