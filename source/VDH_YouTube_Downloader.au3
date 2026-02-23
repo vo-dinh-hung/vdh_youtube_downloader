@@ -41,9 +41,13 @@ If Not FileExists($YT_DLP_PATH) Then
 EndIf
 
 $lding=GUICreate("loading",300,300)
-GuiCtrlCreateLabel("please wait!", 10, 25)
+GUISetBkColor($COLOR_BLUE)
+GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
-RunWait(@ComSpec & " /c """ & $YT_DLP_PATH & """ -U", @ScriptDir, @SW_HIDE)
+; The yt-dlp update check has been moved to the Help menu.
+; We keep the loading dialog here as requested.
+SoundPlay("sounds/start.wav")
+Sleep(6000) 
 GUIDelete($lding)
 
 $mainform = GUICreate("VDH_YouTube_Downloader version" & $version, 300, 250)
@@ -63,7 +67,10 @@ Global $menu = GUICtrlCreateMenu("Help")
 Global $menu_about = GUICtrlCreateMenuItem("&About", $menu)
 Global $menu_readme = GUICtrlCreateMenuItem("&Read Me", $menu)
 Global $menu_contact = GUICtrlCreateMenuItem("&Contact", $menu)
-Global $menu_sep = GUICtrlCreateMenuItem("", $menu) ; Dòng kẻ ngang
+Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked &yt-dlp Updates", $menu)
+Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application &Updates", $menu)
+
+Global $menu_sep = GUICtrlCreateMenuItem("", $menu)
 Global $menu_exit = GUICtrlCreateMenuItem("E&xit", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
@@ -74,30 +81,45 @@ While 1
     Local $msg = GUIGetMsg()
     Switch $msg
         Case $GUI_EVENT_CLOSE, $menu_exit
+            SoundPlay(@ScriptDir & "\sounds\exit.wav", 1)
             DllClose($dll)
             Exit
 
         Case $btn_Menu_DL
+            SoundPlay("sounds/enter.wav")
             _ShowDownloader()
 
         Case $btn_Menu_PL
+            SoundPlay("sounds/enter.wav")
             _ShowPlayer()
 
         Case $btn_Menu_SC
+            SoundPlay("sounds/enter.wav")
             _ShowSearch()
 
         Case $btn_Menu_FV
+            SoundPlay("sounds/enter.wav")
             _ShowFavorites()
 
         Case $btn_Menu_HS
+            SoundPlay("sounds/enter.wav")
             _ShowHistory()
 
         Case $menu_about
+            SoundPlay("sounds/enter.wav")
             _Show_About_Window()
         Case $menu_readme
+            SoundPlay("sounds/enter.wav")
             _Show_Readme_Window()
         Case $menu_contact
+            SoundPlay("sounds/enter.wav")
             _Show_Contact_Window()
+        Case $menu_update_ytdlp
+            SoundPlay("sounds/enter.wav")
+            _Check_YTDLP_Update()
+        Case $menu_Update_app
+            SoundPlay("sounds/enter.wav")
+            _CheckGithubUpdate()
     EndSwitch
 WEnd
 
@@ -383,6 +405,8 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     If $iTotalLoaded = 0 And Not $bAppend Then
          MsgBox(16, "Info", "No results found for: " & $sKeyword)
+    ElseIf Not $bAppend Then
+        SoundPlay(@ScriptDir & "\sounds\result.wav")
     EndIf
 
     If Not $bAppend And IsHWnd($hWaitGui) Then
@@ -818,6 +842,7 @@ Func _Show_About_Window()
     Local $txtAbout = FileExists(@ScriptDir & "\docs\about.txt") ? FileRead(@ScriptDir & "\docs\about.txt") : "VDH YouTube Downloader"
     Local $idEdit = GUICtrlCreateEdit($txtAbout, 10, 10, 400, 280, BitOR($ES_READONLY, $WS_VSCROLL))
     Local $btn_Close = GUICtrlCreateButton("&Close", 420, 10, 80, 35)
+    GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
     ; Thiết lập phím tắt để điều hướng giữa các thành phần
     Local $dummy_tab = GUICtrlCreateDummy()
@@ -849,6 +874,7 @@ Func _Show_Readme_Window()
     Local $txtRead = FileExists(@ScriptDir & "\docs\readme.txt") ? FileRead(@ScriptDir & "\docs\readme.txt") : "Read Me"
     Local $idEdit = GUICtrlCreateEdit($txtRead, 10, 10, 400, 280, BitOR($ES_READONLY, $WS_VSCROLL))
     Local $btn_Close = GUICtrlCreateButton("&Close", 420, 10, 80, 35)
+    GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
     ; Thiết lập phím tắt để điều hướng giữa các thành phần
     Local $dummy_tab = GUICtrlCreateDummy()
@@ -1084,9 +1110,7 @@ Func _LoadFavorites()
         FileClose($hFile)
     EndIf
 
-    If $iTotalLoaded = 0 Then
-        MsgBox(64, "Info", "No favorite videos yet.")
-    EndIf
+
 EndFunc
 
 Func _ShowHistory()
@@ -1232,4 +1256,138 @@ Func _AutoDetectClipboardLink()
                 ExitLoop
         EndSelect
     WEnd
+EndFunc
+Func _Check_YTDLP_Update()
+    Local $hWait = GUICreate("loading", 300, 300, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+    GUICtrlCreateLabel("Checking for yt-dlp updates, please wait...", 10, 25, 280, 50, $SS_CENTER)
+    GUISetBkColor(0xFFFFFF, $hWait)
+    GUISetState(@SW_SHOW, $hWait)
+    
+    Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --update --simulate"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $sOutput = ""
+    While ProcessExists($iPID)
+        $sOutput &= StdoutRead($iPID)
+        Sleep(10)
+    WEnd
+    $sOutput &= StdoutRead($iPID)
+    GUIDelete($hWait)
+    
+    If StringInStr($sOutput, "is up to date") Then
+        MsgBox(64, "yt-dlp Update", "You are already using the latest version of yt-dlp.")
+    ElseIf StringInStr($sOutput, "Latest version") Or StringInStr($sOutput, "Updating to") Then
+        Local $iRes = MsgBox(36, "yt-dlp Update", "A new version of yt-dlp is available. Would you like to update now?")
+        If $iRes = 6 Then ; Yes
+            Local $hUpd = GUICreate("loading", 300, 300, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+            GUICtrlCreateLabel("Updating yt-dlp, please wait...", 10, 25, 280, 50, $SS_CENTER)
+            GUISetBkColor(0xFFFFFF, $hUpd)
+            GUISetState(@SW_SHOW, $hUpd)
+            RunWait(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --update"', @ScriptDir, @SW_HIDE)
+            GUIDelete($hUpd)
+            MsgBox(64, "Success", "yt-dlp has been updated successfully!")
+        EndIf
+    Else
+        MsgBox(16, "Error", "Could not check for updates. Please check your internet connection." & @CRLF & @CRLF & "Output: " & $sOutput)
+    EndIf
+EndFunc
+Func _CheckGithubUpdate()
+
+    Local $sCheckingText = "Checking for updates..."
+    Local $hCheckGUI = GuiCreate("", 300, 80, -1, -1, BitOR($WS_CAPTION, $WS_POPUP), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+    GuiSetBkColor(0xFFFFFF, $hCheckGUI)
+    Local $lblCheck = GuiCtrlCreateLabel($sCheckingText, 10, 25, 280, 30, $ES_CENTER)
+    GuiCtrlSetFont($lblCheck, 10, 400, 0, "Arial")
+    GuiSetState(@SW_SHOW, $hCheckGUI)
+    Sleep(3000)
+    GuiDelete($hCheckGUI)
+
+    If Ping("github.com", 2000) = 0 And Ping("google.com", 2000) = 0 Then
+         MsgBox(48, "Check Update", "No internet connection.")
+         Return
+    EndIf
+
+    Local $sRepoOwner = "vo-dinh-hung"
+    Local $sRepoName = "vdhYoutubeDownloader-"
+    Local $sApiUrl = "https://api.github.com/repos/vo-dinh-hung/vdhYoutubeDownloader-/releases/latest"
+
+    Local $oHTTP = ObjCreate("WinHttp.WinHttpRequest.5.1")
+    If Not IsObj($oHTTP) Then
+        MsgBox(16, "Error", "Cannot create HTTP Object.")
+        Return
+    EndIf
+
+    $oHTTP.Open("GET", $sApiUrl, False)
+
+    $oHTTP.Send()
+
+    If @error Then
+        MsgBox(48, "Check Update", "Connection failed. Please check your internet.")
+        Return
+    EndIf
+
+    If $oHTTP.Status <> 200 Then
+        MsgBox(48, "Check Update", "Cannot connect to update server or no release found." & @CRLF & "Status Code: " & $oHTTP.Status)
+        Return
+    EndIf
+
+    Local $sResponse = $oHTTP.ResponseText
+
+    Local $aMatch = StringRegExp($sResponse, '"tag_name":\s*"([^"]+)"', 3)
+
+    If IsArray($aMatch) Then
+        Local $sLatestVersion = $aMatch[0]
+        $sLatestVersion = StringReplace($sLatestVersion, "v", "")
+        If $sLatestVersion <> $version Then
+            SoundPlay("sounds/update.wav")
+            Local $iMsg = MsgBox(36, "Update Available", "A new version (" & $sLatestVersion & ") is available!" & @CRLF & _
+                                     "Your version: " & $version & @CRLF & @CRLF & _
+                                     "Do you want to download it now?")
+            If $iMsg = 6 Then
+                $downloadtext = "please wait"
+                $downloadGui = GuiCreate("downloading update", 400, 400, -1, -1)
+                GuiSetBkColor($COLOR_WHITE)
+                GuiCtrlCreateLabel($downloadtext, 40, 60)
+                GuiSetState(@SW_SHOW, $downloadGui)
+                Local $sDownloadURL = "https://github.com/vo-dinh-hung/vdhYoutubeDownloader-/releases/latest/download/vdhYoutubeDownloader-.zip"
+                Local $sSavePath = @ScriptDir & "\vdhYoutubeDownloader-.zip"
+
+                ProgressOn("Downloading Update", "Please wait while downloading...", "0%")
+
+                DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\updating.wav", "ptr", 0, "dword", 0x0009)
+
+                Local $hDownload = InetGet($sDownloadURL, $sSavePath, 1, 1)
+
+                Do
+                    Sleep(100)
+                    Local $iBytesRead = InetGetInfo($hDownload, 0)
+                    Local $iFileSize = InetGetInfo($hDownload, 1)
+
+                    If $iFileSize > 0 Then
+                        Local $iPct = Round(($iBytesRead / $iFileSize) * 100)
+                        ProgressSet($iPct, $iPct & "% complete")
+                    Else
+                        ProgressSet(0, "Connecting...")
+                    EndIf
+
+                Until InetGetInfo($hDownload, 2)
+
+                InetClose($hDownload)
+
+                DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
+
+                ProgressOff()
+                GuiDelete($downloadGui)
+
+                SoundPlay("sounds/updated.wav")
+
+                MsgBox(64, "Success", "Downloaded successfully!" & @CRLF & "File saved as: " & $sSavePath)
+Run("unzip.bat")
+                ; ShellExecute($sSavePath)
+Exit
+            EndIf
+        Else
+            MsgBox(64, "no update available", "You are using the latest version (" & $version & ").") ; [SỬA LỖI] Đổi $sAppVersion thành $version
+        EndIf
+    Else
+        MsgBox(16, "Error", "Could not parse version information.")
+    EndIf
 EndFunc
