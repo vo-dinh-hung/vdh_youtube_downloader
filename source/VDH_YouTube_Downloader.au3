@@ -219,23 +219,12 @@ Func _ShowSearch()
     GUICtrlSetColor(-1, 0xFFFFFF)
     $inp_search = GUICtrlCreateInput("", 100, 12, 210, 20)
     $btn_search_go = GUICtrlCreateButton("&Search", 320, 10, 70, 25)
+    GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
 
     While 1
         Local $nMsg = GUIGetMsg()
-
-        If _IsPressed("0D", $dll) And WinActive($hCurrentSubGui) Then
-            If ControlGetHandle($hCurrentSubGui, "", ControlGetFocus($hCurrentSubGui)) = GUICtrlGetHandle($inp_search) Then
-                $sCurrentKeyword = GUICtrlRead($inp_search)
-                If $sCurrentKeyword <> "" Then
-                    _ShowSearchResultsWindow($sCurrentKeyword)
-                EndIf
-                Do
-                    Sleep(10)
-                Until Not _IsPressed("0D", $dll)
-            EndIf
-        EndIf
 
         Switch $nMsg
             Case $GUI_EVENT_CLOSE
@@ -328,7 +317,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     Local $sEscapedKeyword = StringReplace($sKeyword, '"', '\"')
     Local $sSearchQuery = "ytsearch" & $iEnd & ":" & $sEscapedKeyword
-    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "I:%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchQuery & '"'
+    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "I:%(id)s" --print "D:%(duration_string)s" --print "U:%(uploader)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchQuery & '"'
 
     Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
 
@@ -355,24 +344,35 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     If $aLines[0] > 0 Then
         Local $iCount = UBound($aSearchIds)
-        Local $sLastTitle = ""
+        Local $sLastTitle = "", $sLastId = "", $sLastDur = "", $sLastUp = ""
         For $i = 1 To $aLines[0]
             Local $sLine = $aLines[$i]
             If StringLeft($sLine, 2) = "T:" Then
                 $sLastTitle = StringTrimLeft($sLine, 2)
-            ElseIf StringLeft($sLine, 2) = "I:" And $sLastTitle <> "" Then
-                Local $sId = StringTrimLeft($sLine, 2)
+            ElseIf StringLeft($sLine, 2) = "I:" Then
+                $sLastId = StringTrimLeft($sLine, 2)
+            ElseIf StringLeft($sLine, 2) = "D:" Then
+                $sLastDur = StringTrimLeft($sLine, 2)
+                If $sLastDur == "NA" Then $sLastDur = ""
+            ElseIf StringLeft($sLine, 2) = "U:" Then
+                $sLastUp = StringTrimLeft($sLine, 2)
+            EndIf
 
+            If $sLastTitle <> "" And $sLastId <> "" And $sLastDur <> "" And $sLastUp <> "" Then
                 $iTotalLoaded += 1
-                _GUICtrlListBox_AddString($lst_results, $iTotalLoaded & ". " & $sLastTitle)
+                Local $sDisplay = $sLastTitle & " " & $sLastDur & " by " & $sLastUp
+                _GUICtrlListBox_AddString($lst_results, $sDisplay)
 
                 ReDim $aSearchIds[$iCount + 1]
                 ReDim $aSearchTitles[$iCount + 1]
-                $aSearchIds[$iCount] = $sId
+                $aSearchIds[$iCount] = $sLastId
                 $aSearchTitles[$iCount] = $sLastTitle
                 
                 $iCount += 1
                 $sLastTitle = ""
+                $sLastId = ""
+                $sLastDur = ""
+                $sLastUp = ""
             EndIf
         Next
     EndIf
