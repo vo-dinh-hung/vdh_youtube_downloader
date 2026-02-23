@@ -24,8 +24,11 @@ We have designed a help menu where you can find every valuable information
 - about: reading information (app_name, version v.v).
 - readme: Read the software instructions.
 - contact: Contribute ideas for software development.
+- Checked application Updates: checked for updates.
+- Checked yt-dlp Updates: checked updates for yt_dlp.
 
 ### main shortcut:
+
 
 We have assigned keyboard shortcuts for you to easily use the software and be flexible in your operations.
 
