@@ -5,6 +5,7 @@
 #include <Constants.au3>
 #include <Misc.au3>
 #include <Array.au3>
+#include <GuiMenu.au3>
 
 Global $version = "1.0"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
@@ -21,13 +22,16 @@ Global $g_bAutoPlay = True
 Global $mainform
 Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
 Global $linkedit, $play_btn, $online_play_btn
-Global $inp_search, $btn_search_go, $lst_results
+Global $inp_search, $btn_search_go, $lst_results, $btn_search_hist
 Global $hCurrentSubGui = 0
 Global $hResultsGui = 0 
 Global $hFavoritesGui = 0 
 Global $hHistoryGui = 0
+Global $hSearchHistoryGui = 0
+
 Global $FAVORITES_FILE = @ScriptDir & "\favorites.dat"
 Global $HISTORY_FILE = @ScriptDir & "\watch_history.dat"
+Global $SEARCH_HISTORY_FILE = @ScriptDir & "\search_history.dat"
 
 ; Migrate old history if it exists
 If FileExists(@ScriptDir & "\history.dat") And Not FileExists($HISTORY_FILE) Then
@@ -44,8 +48,6 @@ $lding=GUICreate("loading",300,300)
 GUISetBkColor($COLOR_BLUE)
 GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
-; The yt-dlp update check has been moved to the Help menu.
-; We keep the loading dialog here as requested.
 SoundPlay("sounds/start.wav")
 Sleep(6000) 
 GUIDelete($lding)
@@ -60,7 +62,7 @@ GUICtrlSetColor(-1, 0xFFFFFF)
 Global $btn_Menu_DL = GUICtrlCreateButton("&Download YouTube link", 50, 70, 200, 40)
 Global $btn_Menu_PL = GUICtrlCreateButton("&Play YouTube link", 50, 120, 200, 40)
 Global $btn_Menu_SC = GUICtrlCreateButton("&Search on YouTube", 50, 170, 200, 40)
-Global $btn_Menu_FV = GUICtrlCreateButton("&Favorite Video", 50, 210, 100, 40)
+Global $btn_Menu_FV = GUICtrlCreateButton("&Favorite Videos", 50, 210, 100, 40)
 Global $btn_Menu_HS = GUICtrlCreateButton("&Watch History", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
@@ -234,7 +236,7 @@ EndFunc
 
 Func _ShowSearch()
     GUISetState(@SW_HIDE, $mainform)
-    $hCurrentSubGui = GUICreate("Search", 400, 80)
+    $hCurrentSubGui = GUICreate("Search", 400, 120)
     GUISetBkColor($COLOR_BLUE)
 
     GUICtrlCreateLabel("&Enter keyword to search:", 10, 15, 80, 20)
@@ -242,6 +244,8 @@ Func _ShowSearch()
     $inp_search = GUICtrlCreateInput("", 100, 12, 210, 20)
     $btn_search_go = GUICtrlCreateButton("&Search", 320, 10, 70, 25)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
+
+    $btn_search_hist = GUICtrlCreateButton("Search &History", 100, 50, 210, 30)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
 
@@ -258,10 +262,124 @@ Func _ShowSearch()
             Case $btn_search_go
                 $sCurrentKeyword = GUICtrlRead($inp_search)
                 If $sCurrentKeyword <> "" Then
+                    _AddSearchHistory($sCurrentKeyword)
                     _ShowSearchResultsWindow($sCurrentKeyword)
+                EndIf
+
+            Case $btn_search_hist
+                _ShowSearchHistoryWindow()
+        EndSwitch
+    WEnd
+EndFunc
+
+Func _AddSearchHistory($sKeyword)
+    If $sKeyword = "" Then Return
+    
+    Local $sContent = ""
+    If FileExists($SEARCH_HISTORY_FILE) Then
+        $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
+    EndIf
+    
+    Local $aLines = StringSplit(StringStripCR($sContent), @LF)
+    Local $sNewContent = ""
+    
+    For $i = 1 To $aLines[0]
+        If $aLines[$i] <> "" And $aLines[$i] <> $sKeyword Then
+            $sNewContent &= $aLines[$i] & @CRLF
+        EndIf
+    Next
+    
+    $sNewContent &= $sKeyword & @CRLF
+    
+    Local $hFile = FileOpen($SEARCH_HISTORY_FILE, 2 + 256)
+    FileWrite($hFile, $sNewContent)
+    FileClose($hFile)
+EndFunc
+
+Func _ShowSearchHistoryWindow()
+    GUISetState(@SW_HIDE, $hCurrentSubGui)
+
+    $hSearchHistoryGui = GUICreate("Search History", 350, 450)
+    GUISetBkColor($COLOR_BLUE)
+    
+    Local $lst_hist = GUICtrlCreateList("", 10, 10, 330, 350, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
+    
+    Local $btn_remove = GUICtrlCreateButton("&Delete From History", 10, 370, 160, 30)
+    Local $btn_clear = GUICtrlCreateButton("Clear &All History", 180, 370, 160, 30)
+    Local $btn_back = GUICtrlCreateButton("&Go Back", 10, 410, 330, 30)
+
+    GUISetState(@SW_SHOW, $hSearchHistoryGui)
+
+    _LoadSearchHistoryList($lst_hist)
+
+    While 1
+        Local $nMsg = GUIGetMsg()
+        
+        If (_IsPressed("0D", $dll) And WinActive($hSearchHistoryGui) And ControlGetHandle($hSearchHistoryGui, "", ControlGetFocus($hSearchHistoryGui)) = GUICtrlGetHandle($lst_hist)) Then
+            Local $sSelected = _GUICtrlListBox_GetText($lst_hist, _GUICtrlListBox_GetCurSel($lst_hist))
+            If $sSelected <> "" Then
+                GUIDelete($hSearchHistoryGui)
+                $sCurrentKeyword = $sSelected
+                GUICtrlSetData($inp_search, $sCurrentKeyword)
+                _ShowSearchResultsWindow($sCurrentKeyword)
+                Return
+            EndIf
+            Do
+                Sleep(10)
+            Until Not _IsPressed("0D", $dll)
+        EndIf
+
+        Switch $nMsg
+            Case $GUI_EVENT_CLOSE, $btn_back
+                GUIDelete($hSearchHistoryGui)
+                GUISetState(@SW_SHOW, $hCurrentSubGui)
+                Return
+
+            Case $btn_remove
+                Local $iIndex = _GUICtrlListBox_GetCurSel($lst_hist)
+                If $iIndex <> -1 Then
+                    Local $sTxt = _GUICtrlListBox_GetText($lst_hist, $iIndex)
+                    _RemoveSearchHistoryItem($sTxt)
+                    _GUICtrlListBox_DeleteString($lst_hist, $iIndex)
+                EndIf
+                
+            Case $btn_clear
+                If MsgBox(36, "Confirm", "Are you sure you want to delete all search history?") = 6 Then
+                    FileDelete($SEARCH_HISTORY_FILE)
+                    GUICtrlSetData($lst_hist, "")
                 EndIf
         EndSwitch
     WEnd
+EndFunc
+
+Func _LoadSearchHistoryList($hListCtrl)
+    GUICtrlSetData($hListCtrl, "")
+    If Not FileExists($SEARCH_HISTORY_FILE) Then Return
+    
+    Local $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
+    Local $aLines = StringSplit(StringStripCR($sContent), @LF)
+    
+    For $i = $aLines[0] To 1 Step -1
+        If $aLines[$i] <> "" Then
+            _GUICtrlListBox_AddString($hListCtrl, $aLines[$i])
+        EndIf
+    Next
+EndFunc
+
+Func _RemoveSearchHistoryItem($sKeyword)
+    Local $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
+    Local $aLines = StringSplit(StringStripCR($sContent), @LF)
+    Local $sNewContent = ""
+    
+    For $i = 1 To $aLines[0]
+        If $aLines[$i] <> "" And $aLines[$i] <> $sKeyword Then
+            $sNewContent &= $aLines[$i] & @CRLF
+        EndIf
+    Next
+    
+    Local $hFile = FileOpen($SEARCH_HISTORY_FILE, 2 + 256)
+    FileWrite($hFile, $sNewContent)
+    FileClose($hFile)
 EndFunc
 
 Func _ShowSearchResultsWindow($sKeyword)
@@ -424,77 +542,57 @@ Func _ShowContextMenu($bIsFavContext = False)
 
     Local $sTitle = $aSearchTitles[$iIndex + 1]
 
-    ; Popup menu hiện lên trên cửa sổ kết quả ($hResultsGui)
-    Local $hMenuGui = GUICreate("Options", 250, 270, -1, -1, BitOR($WS_CAPTION, $WS_POPUP, $WS_SYSMENU), -1, $hResultsGui)
-    GUISetBkColor(0xFFFFFF)
-    GUICtrlCreateLabel(StringLeft($sTitle, 35) & "...", 10, 10, 230, 20)
+    Local $hMenu = _GUICtrlMenu_CreatePopup()
+    
+    _GUICtrlMenu_AddMenuItem($hMenu, "Play", 1001)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Play as audio", 1002)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Download", 1003)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Go to channel", 1004)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Open in Browser", 1005)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Copy Link", 1006)
 
-    Local $btn_Play = GUICtrlCreateButton("Play", 10, 35, 230, 30)
-    Local $btn_PlayAudio = GUICtrlCreateButton("Play as audio", 10, 70, 230, 30)
-    Local $btn_DL = GUICtrlCreateButton("Download", 10, 105, 230, 30)
-    Local $btn_Channel = GUICtrlCreateButton("Go to channel", 10, 140, 230, 30)
-    Local $btn_Web = GUICtrlCreateButton("Open in Browser", 10, 175, 230, 30)
-    Local $btn_Copy = GUICtrlCreateButton("Copy Link", 10, 205, 230, 30)
-
-    Local $btn_Fav
+    Local $sFavText
     If $bIsFavContext = 1 Then
-        $btn_Fav = GUICtrlCreateButton("Remove from Favorite", 10, 235, 230, 30)
+        $sFavText = "Remove from Favorite"
     ElseIf $bIsFavContext = 2 Then
-        $btn_Fav = GUICtrlCreateButton("Delete from History", 10, 235, 230, 30)
+        $sFavText = "Delete from History"
     Else
-        $btn_Fav = GUICtrlCreateButton("Add to Favorite", 10, 235, 230, 30)
+        $sFavText = "Add to Favorite"
     EndIf
+    _GUICtrlMenu_AddMenuItem($hMenu, $sFavText, 1007)
 
-    GUISetState(@SW_SHOW, $hMenuGui)
+    Local $iCmd = _GUICtrlMenu_TrackPopupMenu($hMenu, $hResultsGui, MouseGetPos(0), MouseGetPos(1), 1, 1, 2)
+    
+    _GUICtrlMenu_DestroyMenu($hMenu)
 
-    While 1
-        Local $nMsg = GUIGetMsg()
-        Switch $nMsg
-            Case $GUI_EVENT_CLOSE
-                GUIDelete($hMenuGui)
-                ExitLoop
-            Case $btn_Fav
-                GUIDelete($hMenuGui)
-                If $bIsFavContext = 1 Then
-                    If _RemoveFavorite($aSearchIds[$iIndex + 1]) Then
-                        MsgBox(64, "Success", "Removed from favorites successfully!")
-                        Return "REFRESH"
-                    EndIf
-                ElseIf $bIsFavContext = 2 Then
-                    If _RemoveHistory($aSearchIds[$iIndex + 1]) Then
-                        MsgBox(64, "Success", "Removed from history successfully!")
-                        Return "REFRESH"
-                    EndIf
-                Else
-                    _AddFavorite($aSearchIds[$iIndex + 1], $sTitle)
+    Switch $iCmd
+        Case 1007
+            If $bIsFavContext = 1 Then
+                If _RemoveFavorite($aSearchIds[$iIndex + 1]) Then
+                    MsgBox(64, "Success", "Removed from favorites successfully!")
+                    Return "REFRESH"
                 EndIf
-                ExitLoop
-            Case $btn_Play
-                GUIDelete($hMenuGui)
-                _PlayLoop($iIndex, False) ; Video
-                ExitLoop
-            Case $btn_PlayAudio
-                GUIDelete($hMenuGui)
-                _PlayLoop($iIndex, True) ; Audio
-                ExitLoop
-            Case $btn_DL
-                GUIDelete($hMenuGui)
-                _ShowDownloadDialog($aSearchIds[$iIndex + 1], $sTitle)
-                ExitLoop
-            Case $btn_Channel
-                GUIDelete($hMenuGui)
-                _Action_GoChannel($iIndex)
-                ExitLoop
-            Case $btn_Web
-                GUIDelete($hMenuGui)
-                _Action_OpenBrowser($iIndex)
-                ExitLoop
-            Case $btn_Copy
-                GUIDelete($hMenuGui)
-                _Action_CopyLink($iIndex)
-                ExitLoop
-        EndSwitch
-    WEnd
+            ElseIf $bIsFavContext = 2 Then
+                If _RemoveHistory($aSearchIds[$iIndex + 1]) Then
+                    MsgBox(64, "Success", "Removed from history successfully!")
+                    Return "REFRESH"
+                EndIf
+            Else
+                _AddFavorite($aSearchIds[$iIndex + 1], $sTitle)
+            EndIf
+        Case 1001
+            _PlayLoop($iIndex, False) ; Video
+        Case 1002
+            _PlayLoop($iIndex, True) ; Audio
+        Case 1003
+            _ShowDownloadDialog($aSearchIds[$iIndex + 1], $sTitle)
+        Case 1004
+            _Action_GoChannel($iIndex)
+        Case 1005
+            _Action_OpenBrowser($iIndex)
+        Case 1006
+            _Action_CopyLink($iIndex)
+    EndSwitch
 EndFunc
 
 Func _Action_CopyLink($iIndex)
@@ -714,8 +812,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             $bLoaded = True
         EndIf
 
-        ; Space to Toggle Pause/Play
-        If _IsPressed("20", $dll) Then
+        ; Space to Toggle Pause/Play - [FIX: Added WinActive]
+        If WinActive($hPlayGui) And _IsPressed("20", $dll) Then
             Local $ps = $oWMP.playState
             If $ps = 3 Then ; Playing
                 $oWMP.controls.pause()
@@ -729,8 +827,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Until Not _IsPressed("20", $dll)
         EndIf
 
-        ; Enter for Full Screen (Video only)
-        If Not $bAudioOnly And _IsPressed("0D", $dll) Then
+        ; Enter for Full Screen (Video only) - [FIX: Added WinActive]
+        If WinActive($hPlayGui) And Not $bAudioOnly And _IsPressed("0D", $dll) Then
             $oWMP.fullScreen = Not $oWMP.fullScreen
             _ReportStatus($oWMP.fullScreen ? "Full Screen Mode Enable" : "Full Screen Mode Disable")
             Do
@@ -738,8 +836,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Until Not _IsPressed("0D", $dll)
         EndIf
 
-        ; N to Toggle Auto-Play
-        If $allowAutoPlayToggle And _IsPressed("4E", $dll) Then ; 'N' key
+        ; N to Toggle Auto-Play - [FIX: Added WinActive]
+        If WinActive($hPlayGui) And $allowAutoPlayToggle And _IsPressed("4E", $dll) Then ; 'N' key
             $g_bAutoPlay = Not $g_bAutoPlay
             GUICtrlSetData($lblAuto, $g_bAutoPlay ? "Auto: ON" : "Auto: OFF")
             GUICtrlSetState($lblAuto, $g_bAutoPlay ? $GUI_SHOW : $GUI_SHOW)
@@ -749,8 +847,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Until Not _IsPressed("4E", $dll)
         EndIf
 
-        ; Handle shortcuts
-        If _IsPressed("26", $dll) Then ; UP ARROW (Volume Up)
+        ; Handle shortcuts - [FIX: Added WinActive to all checks]
+        If WinActive($hPlayGui) And _IsPressed("26", $dll) Then ; UP ARROW (Volume Up)
             $oWMP.settings.volume = ($oWMP.settings.volume + 10 > 100) ? 100 : $oWMP.settings.volume + 10
             ToolTip("Volume: " & $oWMP.settings.volume, 0, 0)
             AdlibRegister("_ClearToolTip", 1000)
@@ -758,7 +856,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 Sleep(10)
             Until Not _IsPressed("26", $dll)
         EndIf
-        If _IsPressed("28", $dll) Then ; DOWN ARROW (Volume Down)
+        If WinActive($hPlayGui) And _IsPressed("28", $dll) Then ; DOWN ARROW (Volume Down)
             $oWMP.settings.volume = ($oWMP.settings.volume - 10 < 0) ? 0 : $oWMP.settings.volume - 10
             ToolTip("Volume: " & $oWMP.settings.volume, 0, 0)
             AdlibRegister("_ClearToolTip", 1000)
@@ -766,20 +864,20 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 Sleep(10)
             Until Not _IsPressed("28", $dll)
         EndIf
-        If _IsPressed("25", $dll) And Not _IsPressed("11", $dll) Then ; LEFT ARROW (Seek Back)
+        If WinActive($hPlayGui) And _IsPressed("25", $dll) And Not _IsPressed("11", $dll) Then ; LEFT ARROW (Seek Back)
             $oWMP.controls.currentPosition = ($oWMP.controls.currentPosition - 5 < 0) ? 0 : $oWMP.controls.currentPosition - 5
             Do
                 Sleep(10)
             Until Not _IsPressed("25", $dll)
         EndIf
-        If _IsPressed("27", $dll) And Not _IsPressed("11", $dll) Then ; RIGHT ARROW (Seek Forward)
+        If WinActive($hPlayGui) And _IsPressed("27", $dll) And Not _IsPressed("11", $dll) Then ; RIGHT ARROW (Seek Forward)
             $oWMP.controls.currentPosition = $oWMP.controls.currentPosition + 5
             Do
                 Sleep(10)
             Until Not _IsPressed("27", $dll)
         EndIf
 
-        If _IsPressed("11", $dll) Then ; CTRL Key
+        If WinActive($hPlayGui) And _IsPressed("11", $dll) Then ; CTRL Key
             If _IsPressed("25", $dll) Then ; LEFT ARROW (Back)
                 $sAction = "BACK"
                 ExitLoop
@@ -790,8 +888,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             EndIf
         EndIf
 
-        ; Home Key (Restart track)
-        If _IsPressed("24", $dll) Then ; Home key
+        ; Home Key (Restart track) - [FIX: Added WinActive]
+        If WinActive($hPlayGui) And _IsPressed("24", $dll) Then ; Home key
             $oWMP.controls.stop()
             $oWMP.controls.play()
             _ReportStatus("Restart Track")
@@ -800,7 +898,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Until Not _IsPressed("24", $dll)
         EndIf
 
-        If _IsPressed("23", $dll) Then ; End
+        ; End Key - [FIX: Added WinActive]
+        If WinActive($hPlayGui) And _IsPressed("23", $dll) Then ; End
             $sAction = "STOP"
             ExitLoop
         EndIf
@@ -1029,13 +1128,26 @@ Func _RemoveFavorite($sID)
     Return False
 EndFunc
 
+Func _ClearFavorites()
+    Local $hFile = FileOpen($FAVORITES_FILE, 2 + 256) ; 2=Write, 256=UTF8
+    If $hFile <> -1 Then
+        FileWrite($hFile, "")
+        FileClose($hFile)
+        Return True
+    EndIf
+    Return False
+EndFunc
+
 Func _ShowFavorites()
     GUISetState(@SW_HIDE, $mainform)
 
-    $hFavoritesGui = GUICreate("Favorite Videos", 400, 440)
+    ; Increased height to 480 to match History window and fit the extra button comfortably
+    $hFavoritesGui = GUICreate("Favorite Videos", 400, 480)
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    Local $btn_go_back = GUICtrlCreateButton("&go back", 10, 400, 380, 30)
+    
+    Local $btn_clear_fav = GUICtrlCreateButton("&Clear all favorites", 10, 400, 380, 30)
+    Local $btn_go_back = GUICtrlCreateButton("&go back", 10, 440, 380, 30)
 
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
@@ -1073,6 +1185,11 @@ Func _ShowFavorites()
                 $hFavoritesGui = 0
                 GUISetState(@SW_SHOW, $mainform)
                 Return
+            Case $btn_clear_fav
+                If MsgBox(36, "Confirm", "Are you sure you want to clear all favorites?") = 6 Then
+                    _ClearFavorites()
+                    _LoadFavorites()
+                EndIf
             Case $dummy_copy
                 _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))
             Case $dummy_browser
