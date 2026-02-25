@@ -21,10 +21,6 @@ Checked application Updates: Allows users to check for software updates when new
 Checked yt-dlp Updates: Automatically check for updates to the yt dlp library when new versions are available.
 main shortcut:
 We have assigned keyboard shortcuts for you to easily use the software and be flexible in your operations.
-alt+s: Search on YouTube.
-alt+f: favorite video.
-alt+p: play video from the link.
-alt+d: download video from the link.
 home: beginning of the video
 end: end of a video
 enter: Enable/disable full screen.
@@ -44,6 +40,7 @@ Select Format: You can choose from many different formats.
 download button: when press, activate download video.
 copy link : you can copy link to paste in editing tools.
 Open in Browser: Open search results in the default browser.
+Add to Favorite: You can add the videos you want to listen to to your favorites list.
 Contact Information:
 If you would like to provide feedback, you can contact me through the following methods:
 Phone: 0366934510

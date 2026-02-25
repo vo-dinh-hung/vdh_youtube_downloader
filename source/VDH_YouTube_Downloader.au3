@@ -1,7 +1,7 @@
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Res_Comment=nothing
 #AutoIt3Wrapper_Res_Description=This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
-#AutoIt3Wrapper_Res_Fileversion=version 1.1
+#AutoIt3Wrapper_Res_Fileversion=1.1
 #AutoIt3Wrapper_Res_ProductName=Vdh_youtube_downloader+
 #AutoIt3Wrapper_Res_ProductVersion=1.1
 #AutoIt3Wrapper_Res_CompanyName=vdh productions
@@ -79,12 +79,10 @@ Global $btn_Menu_HS = GUICtrlCreateButton("Watch History", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
 Global $menu_about = GUICtrlCreateMenuItem("About", $menu)
-Global $menu_readme = GUICtrlCreateMenuItem("Read Me", $menu)
+Global $menu_readme = GUICtrlCreateMenuItem("Readme", $menu)
 Global $menu_contact = GUICtrlCreateMenuItem("Contact", $menu)
-Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked yt-dlp Updates", $menu)
-Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application Updates", $menu)
-
-Global $menu_sep = GUICtrlCreateMenuItem("", $menu)
+Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked &yt_dlp Updates", $menu)
+Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application &Updates", $menu)
 Global $menu_exit = GUICtrlCreateMenuItem("Exit", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
@@ -469,7 +467,8 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     Local $sEscapedKeyword = StringReplace($sKeyword, '"', '\"')
     Local $sSearchQuery = "ytsearch" & $iEnd & ":" & $sEscapedKeyword
-    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "I:%(id)s" --print "D:%(duration_string)s" --print "U:%(uploader)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchQuery & '"'
+    ; Improved params: filter live streams, suppress some errors, and use more robust printing
+    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "I:%(id)s" --print "D:%(duration_string)s" --print "U:%(uploader)s" --match-filter "!is_live" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchQuery & '"'
 
     Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
 
@@ -491,42 +490,51 @@ Func _SearchYouTube($sKeyword, $bAppend)
     EndIf
 
     Local $iLoadedBefore = $iTotalLoaded
-
     Local $aLines = StringSplit(StringStripCR($sOutput), @LF)
 
     If $aLines[0] > 0 Then
-        Local $iCount = UBound($aSearchIds)
-        Local $sLastTitle = "", $sLastId = "", $sLastDur = "", $sLastUp = ""
+        Local $sCurrentTitle = "", $sCurrentId = "", $sCurrentDur = "", $sCurrentUp = ""
+        
+        ; Efficiently ReDim in chunks to avoid excessive ReDimming
+        Local $iInitialCount = UBound($aSearchIds)
+        ReDim $aSearchIds[$iInitialCount + $aLines[0]]
+        ReDim $aSearchTitles[$iInitialCount + $aLines[0]]
+        Local $iCount = $iInitialCount
+
         For $i = 1 To $aLines[0]
-            Local $sLine = $aLines[$i]
+            Local $sLine = StringStripWS($aLines[$i], 3)
+            If $sLine = "" Then ContinueLoop
+
             If StringLeft($sLine, 2) = "T:" Then
-                $sLastTitle = StringTrimLeft($sLine, 2)
+                $sCurrentTitle = StringTrimLeft($sLine, 2)
             ElseIf StringLeft($sLine, 2) = "I:" Then
-                $sLastId = StringTrimLeft($sLine, 2)
+                $sCurrentId = StringTrimLeft($sLine, 2)
             ElseIf StringLeft($sLine, 2) = "D:" Then
-                $sLastDur = StringTrimLeft($sLine, 2)
-                If $sLastDur == "NA" Then $sLastDur = ""
+                $sCurrentDur = StringTrimLeft($sLine, 2)
+                If $sCurrentDur == "NA" Then $sCurrentDur = "Live/N/A"
             ElseIf StringLeft($sLine, 2) = "U:" Then
-                $sLastUp = StringTrimLeft($sLine, 2)
+                $sCurrentUp = StringTrimLeft($sLine, 2)
             EndIf
 
-            If $sLastTitle <> "" And $sLastId <> "" And $sLastDur <> "" And $sLastUp <> "" Then
+            If $sCurrentTitle <> "" And $sCurrentId <> "" And $sCurrentUp <> "" Then
                 $iTotalLoaded += 1
-                Local $sDisplay = $sLastTitle & " " & $sLastDur & " by " & $sLastUp
+                Local $sDisplay = $sCurrentTitle & " [" & $sCurrentDur & "] - " & $sCurrentUp
                 _GUICtrlListBox_AddString($lst_results, $sDisplay)
 
-                ReDim $aSearchIds[$iCount + 1]
-                ReDim $aSearchTitles[$iCount + 1]
-                $aSearchIds[$iCount] = $sLastId
-                $aSearchTitles[$iCount] = $sLastTitle
+                $aSearchIds[$iCount] = $sCurrentId
+                $aSearchTitles[$iCount] = $sCurrentTitle
                 
                 $iCount += 1
-                $sLastTitle = ""
-                $sLastId = ""
-                $sLastDur = ""
-                $sLastUp = ""
+                $sCurrentTitle = ""
+                $sCurrentId = ""
+                $sCurrentDur = ""
+                $sCurrentUp = ""
             EndIf
         Next
+        
+        ; Shrink arrays to actual size
+        ReDim $aSearchIds[$iCount]
+        ReDim $aSearchTitles[$iCount]
     EndIf
 
     If $iTotalLoaded = $iLoadedBefore And $bAppend Then
@@ -534,7 +542,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
     EndIf
 
     If $iTotalLoaded = 0 And Not $bAppend Then
-         MsgBox(16, "Info", "No results found for: " & $sKeyword)
+         MsgBox(16, "Search", "No results found for: " & $sKeyword)
     ElseIf Not $bAppend Then
         SoundPlay(@ScriptDir & "\sounds\result.wav")
     EndIf
@@ -563,13 +571,16 @@ Func _ShowContextMenu($bIsFavContext = False)
     _GUICtrlMenu_AddMenuItem($hMenu, "Open in Browser", 1005)
     _GUICtrlMenu_AddMenuItem($hMenu, "Copy Link", 1006)
 
+    Local $sID = $aSearchIds[$iIndex + 1]
+    Local $bIsAlreadyFav = _IsFavorite($sID)
+
     Local $sFavText
     If $bIsFavContext = 1 Then
         $sFavText = "Remove from Favorite"
     ElseIf $bIsFavContext = 2 Then
         $sFavText = "Delete from History"
     Else
-        $sFavText = "Add to Favorite"
+        $sFavText = $bIsAlreadyFav ? "Remove from Favorite" : "Add to Favorite"
     EndIf
     _GUICtrlMenu_AddMenuItem($hMenu, $sFavText, 1007)
 
@@ -579,18 +590,18 @@ Func _ShowContextMenu($bIsFavContext = False)
 
     Switch $iCmd
         Case 1007
-            If $bIsFavContext = 1 Then
-                If _RemoveFavorite($aSearchIds[$iIndex + 1]) Then
+            If $bIsFavContext = 1 Or ($bIsFavContext = 0 And $bIsAlreadyFav) Then
+                If _RemoveFavorite($sID) Then
                     MsgBox(64, "Success", "Removed from favorites successfully!")
                     Return "REFRESH"
                 EndIf
             ElseIf $bIsFavContext = 2 Then
-                If _RemoveHistory($aSearchIds[$iIndex + 1]) Then
+                If _RemoveHistory($sID) Then
                     MsgBox(64, "Success", "Removed from history successfully!")
                     Return "REFRESH"
                 EndIf
             Else
-                _AddFavorite($aSearchIds[$iIndex + 1], $sTitle)
+                _AddFavorite($sID, $sTitle)
             EndIf
         Case 1001
             _PlayLoop($iIndex, False) ; Video
@@ -622,17 +633,30 @@ EndFunc
 Func _Action_GoChannel($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     Local $sID = $aSearchIds[$iIndex + 1]
+    
+    Local $hLoading = GUICreate("Working...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
+    GUICtrlCreateLabel("Fetching channel information...", 10, 25, 230, 20, $SS_CENTER)
+    GUISetBkColor(0xFFFFFF, $hLoading)
+    GUISetState(@SW_SHOW, $hLoading)
+
     Local $pid_channel = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --print "https://www.youtube.com/channel/%(channel_id)s" --no-playlist ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $sChannelUrl = ""
     While ProcessExists($pid_channel)
         $sChannelUrl &= StdoutRead($pid_channel)
+        Sleep(10)
     WEnd
+    $sChannelUrl &= StdoutRead($pid_channel)
+    GUIDelete($hLoading)
+
     $sChannelUrl = StringStripWS($sChannelUrl, 3)
-    $sChannelUrl = StringRegExpReplace($sChannelUrl, "(?m)^.*(https://www.youtube.com/channel/[^ \r\n]+).*$", "$1")
-    If StringInStr($sChannelUrl, "youtube.com/channel/") Then
-        ShellExecute($sChannelUrl)
+    ; More robust regex for various channel URL formats
+    Local $pattern = "(https://www\.youtube\.com/(channel/|@)[^ \r\n]+)"
+    Local $aMatch = StringRegExp($sChannelUrl, $pattern, 3)
+    
+    If IsArray($aMatch) Then
+        ShellExecute($aMatch[0])
     Else
-        MsgBox(16, "Error", "Cannot get channel URL.")
+        MsgBox(16, "Error", "Cannot get channel URL. The video might be from a deleted channel or restricted.")
     EndIf
 EndFunc
 
@@ -645,24 +669,40 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
 
         _AddHistory($sID, $sTitle) ; Save to history when playing
 
-        ; Show Loading Dialog (Matching Searching style)
+        ; Show Loading Dialog
         Local $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
-        GUICtrlCreateLabel("Loading YouTube Video, please wait...", 10, 25, 230, 30, $SS_CENTER)
+        GUICtrlCreateLabel("Loading stream URL for:" & @CRLF & StringLeft($sTitle, 35) & "...", 10, 15, 230, 40, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hLoading)
         GUISetState(@SW_SHOW, $hLoading)
-        WinActivate($hLoading) ; Focus for screen readers
+        WinActivate($hLoading)
 
         Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
-        Local $pid_url = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
-        Local $sUrl = ""
+        ; Added --no-playlist, --no-check-certificate, -4 and better error capturing
+        Local $pid_url = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate -4 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+        Local $sUrl = "", $sErr = ""
         While ProcessExists($pid_url)
             $sUrl &= StdoutRead($pid_url)
+            $sErr &= StderrRead($pid_url)
+            Sleep(10)
         WEnd
+        $sUrl &= StdoutRead($pid_url)
+        $sErr &= StderrRead($pid_url)
+        
         $sUrl = StringStripWS($sUrl, 3)
 
         If $sUrl = "" Then
             GUIDelete($hLoading)
-            MsgBox(16, "Error", "Cannot get stream URL.")
+            Local $sErrMsg = "Cannot get stream URL."
+            If StringInStr($sErr, "age restricted") Then
+                $sErrMsg &= " This video is age-restricted."
+            ElseIf StringInStr($sErr, "private") Then
+                $sErrMsg &= " This video is private."
+            ElseIf StringInStr($sErr, "not available") Then
+                $sErrMsg &= " This video is not available."
+            ElseIf $sErr <> "" Then
+                $sErrMsg &= " Details: " & StringLeft(StringStripWS($sErr, 3), 100)
+            EndIf
+            MsgBox(16, "Error", $sErrMsg)
             ExitLoop
         EndIf
 
@@ -727,10 +767,11 @@ Func playmedia($url)
     GUISetBkColor(0xFFFFFF, $hLoading)
     GUISetState(@SW_SHOW, $hLoading)
 
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
-    Local $dlink = ""
+    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
         $dlink &= StdoutRead($pid)
+        $sErr &= StderrRead($pid)
     WEnd
     $dlink = StringStripWS($dlink, 3)
 
@@ -742,7 +783,9 @@ Func playmedia($url)
         _PlayInternal($dlink, "YouTube Player", False, $hLoading, False)
     Else
         If $hLoading <> 0 Then GUIDelete($hLoading)
-        MsgBox(16, "Error", "Cannot get video stream from this link.")
+        Local $sErrMsg = "Cannot get video stream from this link."
+        If $sErr <> "" Then $sErrMsg &= " Details: " & StringLeft(StringStripWS($sErr, 3), 100)
+        MsgBox(16, "Error", $sErrMsg)
     EndIf
 EndFunc
 
@@ -753,10 +796,11 @@ Func playaudio($url)
     GUISetBkColor(0xFFFFFF, $hLoading)
     GUISetState(@SW_SHOW, $hLoading)
 
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
-    Local $dlink = ""
+    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
         $dlink &= StdoutRead($pid)
+        $sErr &= StderrRead($pid)
     WEnd
     $dlink = StringStripWS($dlink, 3)
 
@@ -768,7 +812,9 @@ Func playaudio($url)
         _PlayInternal($dlink, "YouTube Audio Player", True, $hLoading, False)
     Else
         If $hLoading <> 0 Then GUIDelete($hLoading)
-        MsgBox(16, "Error", "Cannot get audio stream from this link.")
+        Local $sErrMsg = "Cannot get audio stream from this link."
+        If $sErr <> "" Then $sErrMsg &= " Details: " & StringLeft(StringStripWS($sErr, 3), 100)
+        MsgBox(16, "Error", $sErrMsg)
     EndIf
 EndFunc
 
@@ -1149,6 +1195,13 @@ Func _ClearFavorites()
     EndIf
     Return False
 EndFunc
+
+Func _IsFavorite($sID)
+    If Not FileExists($FAVORITES_FILE) Then Return False
+    Local $sContent = FileRead(FileOpen($FAVORITES_FILE, 0 + 256))
+    Return StringInStr($sContent, $sID & "|") > 0
+EndFunc
+
 
 Func _ShowFavorites()
     GUISetState(@SW_HIDE, $mainform)

@@ -32,11 +32,6 @@ We have designed a help menu where you can find every valuable information
 
 We have assigned keyboard shortcuts for you to easily use the software and be flexible in your operations.
 
-- alt+s: Search on YouTube.
-- alt+f: favorite video.
-- alt+p: play video from the link.
-- alt+d: download video from the link.
-- alt+w: Watch History.
 - home: beginning of the video
 - end: end of the video
 - enter: Enable/disable full screen.
@@ -59,6 +54,7 @@ After pressing enter on the search results, there will be a few more small conte
   - download button: when press, activate download video.
 - copy link : you can copy link to paste in editing tools.
 - Open in Browser: Open search results in the default browser.
+- Add to Favorite: You can add the videos you want to listen to to your favorites list.
 
 ## Contact Information:
 
@@ -66,6 +62,6 @@ If you would like to provide feedback, you can contact me through the following 
 
 - Phone: 0366934510
 - Email:
-[contact from here}(https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=vodinhhungtnlg@gmail.com)
+[contact from here](https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=vodinhhungtnlg@gmail.com)
 - Facebook:
 [Follow developer](https://www.facebook.com/profile.php?id=100083295244149)
