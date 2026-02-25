@@ -66,6 +66,6 @@ If you would like to provide feedback, you can contact me through the following 
 
 - Phone: 0366934510
 - Email:
-[contact from here}(https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=vodinhhungtnlg@gmail.com)
+[contact from here](https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=vodinhhungtnlg@gmail.com)
 - Facebook:
 [Follow developer](https://www.facebook.com/profile.php?id=100083295244149)
