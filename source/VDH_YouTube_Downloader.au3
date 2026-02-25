@@ -1,3 +1,15 @@
+#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
+#AutoIt3Wrapper_Res_Comment=nothing
+#AutoIt3Wrapper_Res_Description=This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
+#AutoIt3Wrapper_Res_Fileversion=version 1.1
+#AutoIt3Wrapper_Res_ProductName=Vdh_youtube_downloader+
+#AutoIt3Wrapper_Res_ProductVersion=1.1
+#AutoIt3Wrapper_Res_CompanyName=vdh productions
+#AutoIt3Wrapper_Res_LegalCopyright=copyright 2026 by vdh productions
+#AutoIt3Wrapper_Res_LegalTradeMarks=nothing
+#AutoIt3Wrapper_Res_Language=1033
+#AutoIt3Wrapper_Res_requestedExecutionLevel=None
+#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 #include <GUIConstants.au3>
 #include <ColorConstants.au3>
 #include <GuiListBox.au3>
@@ -7,7 +19,7 @@
 #include <Array.au3>
 #include <GuiMenu.au3>
 
-Global $version = "1.0"
+Global $version = "1.1"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $dll = DllOpen("user32.dll")
 
@@ -59,21 +71,21 @@ GUICtrlCreateLabel("Press the Alt key to go the help menu, then press tab to qui
 GUICtrlSetFont(-1, 14, 800)
 GUICtrlSetColor(-1, 0xFFFFFF)
 
-Global $btn_Menu_DL = GUICtrlCreateButton("&Download YouTube link", 50, 70, 200, 40)
-Global $btn_Menu_PL = GUICtrlCreateButton("&Play YouTube link", 50, 120, 200, 40)
-Global $btn_Menu_SC = GUICtrlCreateButton("&Search on YouTube", 50, 170, 200, 40)
-Global $btn_Menu_FV = GUICtrlCreateButton("&Favorite Videos", 50, 210, 100, 40)
-Global $btn_Menu_HS = GUICtrlCreateButton("&Watch History", 150, 210, 100, 40)
+Global $btn_Menu_DL = GUICtrlCreateButton("Download YouTube link", 50, 70, 200, 40)
+Global $btn_Menu_PL = GUICtrlCreateButton("Play YouTube link", 50, 120, 200, 40)
+Global $btn_Menu_SC = GUICtrlCreateButton("Search on YouTube", 50, 170, 200, 40)
+Global $btn_Menu_FV = GUICtrlCreateButton("Favorite Videos", 50, 210, 100, 40)
+Global $btn_Menu_HS = GUICtrlCreateButton("Watch History", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
-Global $menu_about = GUICtrlCreateMenuItem("&About", $menu)
-Global $menu_readme = GUICtrlCreateMenuItem("&Read Me", $menu)
-Global $menu_contact = GUICtrlCreateMenuItem("&Contact", $menu)
-Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked &yt-dlp Updates", $menu)
-Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application &Updates", $menu)
+Global $menu_about = GUICtrlCreateMenuItem("About", $menu)
+Global $menu_readme = GUICtrlCreateMenuItem("Read Me", $menu)
+Global $menu_contact = GUICtrlCreateMenuItem("Contact", $menu)
+Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked yt-dlp Updates", $menu)
+Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application Updates", $menu)
 
 Global $menu_sep = GUICtrlCreateMenuItem("", $menu)
-Global $menu_exit = GUICtrlCreateMenuItem("E&xit", $menu)
+Global $menu_exit = GUICtrlCreateMenuItem("Exit", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
 
@@ -130,21 +142,21 @@ Func _ShowDownloader()
     Local $hGuiDL = GUICreate("YouTube Downloader", 400, 300)
     GUISetBkColor($COLOR_BLUE)
 
-    GUICtrlCreateLabel("&Enter the URL link of the video you want to download here:", 10, 20, 380, 20)
+    GUICtrlCreateLabel("Enter the URL link of the video you want to download here:", 10, 20, 380, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $edit = GUICtrlCreateInput("", 10, 45, 380, 20)
     Local $clip = ClipGet()
     If StringInStr($clip, "youtube.com") Or StringInStr($clip, "youtu.be") Then GUICtrlSetData($edit, $clip)
 
-    $paste = GUICtrlCreateButton("&Paste Link", 320, 75, 70, 20)
+    $paste = GUICtrlCreateButton("Paste Link", 320, 75, 70, 20)
 
     GUICtrlCreateLabel("Select Format:", 10, 75, 200, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $cbo_dl_format = GUICtrlCreateCombo("Video MP4 (Best)", 10, 100, 280, 20)
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
 
-    $btn_start_dl = GUICtrlCreateButton("&Download", 10, 150, 380, 40)
-    $openbtn = GUICtrlCreateButton("&Open Download Folder", 10, 200, 380, 30)
+    $btn_start_dl = GUICtrlCreateButton("Download", 10, 150, 380, 40)
+    $openbtn = GUICtrlCreateButton("Open Download Folder", 10, 200, 380, 30)
 
     GUISetState(@SW_SHOW, $hGuiDL)
 
@@ -201,13 +213,13 @@ Func _ShowPlayer()
     Local $hGuiPL = GUICreate("YouTube Player", 400, 250)
     GUISetBkColor($COLOR_BLUE)
 
-    GUICtrlCreateLabel("&Enter the video link you want to play:", 10, 20, 380, 20)
+    GUICtrlCreateLabel("Enter the video link you want to play:", 10, 20, 380, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $linkedit = GUICtrlCreateInput("", 10, 50, 380, 20)
 
-    $play_btn = GUICtrlCreateButton("Play (&Default Player)", 50, 80, 300, 35)
-    $audio_play_btn = GUICtrlCreateButton("Play as &Audio", 50, 125, 300, 35)
-    $online_play_btn = GUICtrlCreateButton("Play in &Browser", 50, 170, 300, 35)
+    $play_btn = GUICtrlCreateButton("Play (Default Player)", 50, 80, 300, 35)
+    $audio_play_btn = GUICtrlCreateButton("Play as Audio", 50, 125, 300, 35)
+    $online_play_btn = GUICtrlCreateButton("Play in Browser", 50, 170, 300, 35)
 
     GUISetState(@SW_SHOW, $hGuiPL)
 
@@ -239,13 +251,13 @@ Func _ShowSearch()
     $hCurrentSubGui = GUICreate("Search", 400, 120)
     GUISetBkColor($COLOR_BLUE)
 
-    GUICtrlCreateLabel("&Enter keyword to search:", 10, 15, 80, 20)
+    GUICtrlCreateLabel("Enter keyword to search:", 10, 15, 80, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $inp_search = GUICtrlCreateInput("", 100, 12, 210, 20)
-    $btn_search_go = GUICtrlCreateButton("&Search", 320, 10, 70, 25)
+    $btn_search_go = GUICtrlCreateButton("Search", 320, 10, 70, 25)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
-    $btn_search_hist = GUICtrlCreateButton("Search &History", 100, 50, 210, 30)
+    $btn_search_hist = GUICtrlCreateButton("Search History", 100, 50, 210, 30)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
 
@@ -304,9 +316,9 @@ Func _ShowSearchHistoryWindow()
     
     Local $lst_hist = GUICtrlCreateList("", 10, 10, 330, 350, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
     
-    Local $btn_remove = GUICtrlCreateButton("&Delete From History", 10, 370, 160, 30)
-    Local $btn_clear = GUICtrlCreateButton("Clear &All History", 180, 370, 160, 30)
-    Local $btn_back = GUICtrlCreateButton("&Go Back", 10, 410, 330, 30)
+    Local $btn_remove = GUICtrlCreateButton("Delete From History", 10, 370, 160, 30)
+    Local $btn_clear = GUICtrlCreateButton("Clear All History", 180, 370, 160, 30)
+    Local $btn_back = GUICtrlCreateButton("Go Back", 10, 410, 330, 30)
 
     GUISetState(@SW_SHOW, $hSearchHistoryGui)
 
@@ -388,7 +400,7 @@ Func _ShowSearchResultsWindow($sKeyword)
     $hResultsGui = GUICreate("Search Results", 400, 440)
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    Local $btn_return_main = GUICtrlCreateButton("&return to main window", 10, 400, 380, 30)
+    Local $btn_return_main = GUICtrlCreateButton("return to main window", 10, 400, 380, 30)
 
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
@@ -940,7 +952,7 @@ Func _Show_About_Window()
     GUISetBkColor($COLOR_BLUE)
     Local $txtAbout = FileExists(@ScriptDir & "\docs\about.txt") ? FileRead(@ScriptDir & "\docs\about.txt") : "VDH YouTube Downloader"
     Local $idEdit = GUICtrlCreateEdit($txtAbout, 10, 10, 400, 280, BitOR($ES_READONLY, $WS_VSCROLL))
-    Local $btn_Close = GUICtrlCreateButton("&Close", 420, 10, 80, 35)
+    Local $btn_Close = GUICtrlCreateButton("Close", 420, 10, 80, 35)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
     ; Thiết lập phím tắt để điều hướng giữa các thành phần
@@ -972,7 +984,7 @@ Func _Show_Readme_Window()
     GUISetBkColor($COLOR_BLUE)
     Local $txtRead = FileExists(@ScriptDir & "\docs\readme.txt") ? FileRead(@ScriptDir & "\docs\readme.txt") : "Read Me"
     Local $idEdit = GUICtrlCreateEdit($txtRead, 10, 10, 400, 280, BitOR($ES_READONLY, $WS_VSCROLL))
-    Local $btn_Close = GUICtrlCreateButton("&Close", 420, 10, 80, 35)
+    Local $btn_Close = GUICtrlCreateButton("Close", 420, 10, 80, 35)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
     ; Thiết lập phím tắt để điều hướng giữa các thành phần
@@ -1146,8 +1158,8 @@ Func _ShowFavorites()
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
     
-    Local $btn_clear_fav = GUICtrlCreateButton("&Clear all favorites", 10, 400, 380, 30)
-    Local $btn_go_back = GUICtrlCreateButton("&go back", 10, 440, 380, 30)
+    Local $btn_clear_fav = GUICtrlCreateButton("Clear all favorites", 10, 400, 380, 30)
+    Local $btn_go_back = GUICtrlCreateButton("go back", 10, 440, 380, 30)
 
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
@@ -1236,8 +1248,8 @@ Func _ShowHistory()
     $hHistoryGui = GUICreate("Watch History", 400, 480)
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    Local $btn_clear_all = GUICtrlCreateButton("&Clear all history", 10, 400, 380, 30)
-    Local $btn_go_back = GUICtrlCreateButton("&go back", 10, 440, 380, 30)
+    Local $btn_clear_all = GUICtrlCreateButton("Clear all history", 10, 400, 380, 30)
+    Local $btn_go_back = GUICtrlCreateButton("go back", 10, 440, 380, 30)
 
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
