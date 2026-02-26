@@ -66,26 +66,43 @@ GUIDelete($lding)
 
 $mainform = GUICreate("VDH_YouTube_Downloader version" & $version, 300, 250)
 GUISetBkColor($COLOR_BLUE)
+GUISetFont(9, 400, 0, "Segoe UI")
 
 GUICtrlCreateLabel("Press the Alt key to go the help menu, then press tab to quick access.", 10, 20, 280, 30, $SS_CENTER)
 GUICtrlSetFont(-1, 14, 800)
 GUICtrlSetColor(-1, 0xFFFFFF)
 
-Global $btn_Menu_DL = GUICtrlCreateButton("Download YouTube link", 50, 70, 200, 40)
-Global $btn_Menu_PL = GUICtrlCreateButton("Play YouTube link", 50, 120, 200, 40)
-Global $btn_Menu_SC = GUICtrlCreateButton("Search on YouTube", 50, 170, 200, 40)
-Global $btn_Menu_FV = GUICtrlCreateButton("Favorite Videos", 50, 210, 100, 40)
-Global $btn_Menu_HS = GUICtrlCreateButton("Watch History", 150, 210, 100, 40)
+Global $btn_Menu_DL = GUICtrlCreateButton("Download YouTube link (Alt+D)", 50, 70, 200, 40)
+Global $btn_Menu_PL = GUICtrlCreateButton("Play YouTube link (Alt+P)", 50, 120, 200, 40)
+Global $btn_Menu_SC = GUICtrlCreateButton("Search on YouTube (Alt+S)", 50, 170, 200, 40)
+Global $btn_Menu_FV = GUICtrlCreateButton("Favorite Videos (Alt+F)", 50, 210, 100, 40)
+Global $btn_Menu_HS = GUICtrlCreateButton("Watch History (Alt+H)", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
 Global $menu_about = GUICtrlCreateMenuItem("About", $menu)
 Global $menu_readme = GUICtrlCreateMenuItem("Readme", $menu)
 Global $menu_contact = GUICtrlCreateMenuItem("Contact", $menu)
-Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked &yt_dlp Updates", $menu)
-Global $menu_Update_app = GUICtrlCreateMenuItem("Checked application &Updates", $menu)
+Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked for updates &yt_dlp", $menu)
+Global $menu_Update_app = GUICtrlCreateMenuItem("Checked for &Updates", $menu)
 Global $menu_exit = GUICtrlCreateMenuItem("Exit", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
+
+Local $hDummyUpdateApp = GUICtrlCreateDummy()
+Local $hDummyUpdateYTDLP = GUICtrlCreateDummy()
+Local $hDummyReadme = GUICtrlCreateDummy()
+
+Local $aAccel[8][2] = [ _
+    ["^+u", $hDummyUpdateApp], _
+    ["^+y", $hDummyUpdateYTDLP], _
+    ["{F1}", $hDummyReadme], _
+    ["!d", $btn_Menu_DL], _
+    ["!p", $btn_Menu_PL], _
+    ["!s", $btn_Menu_SC], _
+    ["!f", $btn_Menu_FV], _
+    ["!h", $btn_Menu_HS] _
+]
+GUISetAccelerators($aAccel, $mainform)
 
 _AutoDetectClipboardLink()
 
@@ -129,9 +146,15 @@ While 1
         Case $menu_update_ytdlp
             SoundPlay("sounds/enter.wav")
             _Check_YTDLP_Update()
-        Case $menu_Update_app
+        Case $menu_Update_app, $hDummyUpdateApp
             SoundPlay("sounds/enter.wav")
             _CheckGithubUpdate()
+        Case $hDummyUpdateYTDLP
+            SoundPlay("sounds/enter.wav")
+            _Check_YTDLP_Update()
+        Case $hDummyReadme
+            SoundPlay("sounds/enter.wav")
+            _Show_Readme_Window()
     EndSwitch
 WEnd
 
@@ -146,15 +169,18 @@ Func _ShowDownloader()
     Local $clip = ClipGet()
     If StringInStr($clip, "youtube.com") Or StringInStr($clip, "youtu.be") Then GUICtrlSetData($edit, $clip)
 
-    $paste = GUICtrlCreateButton("Paste Link", 320, 75, 70, 20)
+    $paste = GUICtrlCreateButton("Paste Link (Alt+P)", 320, 75, 70, 20)
 
     GUICtrlCreateLabel("Select Format:", 10, 75, 200, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $cbo_dl_format = GUICtrlCreateCombo("Video MP4 (Best)", 10, 100, 280, 20)
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
 
-    $btn_start_dl = GUICtrlCreateButton("Download", 10, 150, 380, 40)
-    $openbtn = GUICtrlCreateButton("Open Download Folder", 10, 200, 380, 30)
+    $btn_start_dl = GUICtrlCreateButton("Download (Alt+D)", 10, 150, 380, 40)
+    $openbtn = GUICtrlCreateButton("Open Download Folder (Alt+O)", 10, 200, 380, 30)
+
+    Local $aAccelDL[3][2] = [["!p", $paste], ["!d", $btn_start_dl], ["!o", $openbtn]]
+    GUISetAccelerators($aAccelDL, $hGuiDL)
 
     GUISetState(@SW_SHOW, $hGuiDL)
 
@@ -198,7 +224,17 @@ Func _ShowDownloader()
                     EndIf
 
                     GUICtrlSetState($btn_start_dl, $GUI_DISABLE)
-                    RunWait(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & $sExtraArgs & ' -o "download/%(title)s.%(ext)s" "' & $url & '""', @ScriptDir, @SW_SHOW)
+                    Local $iPidDL = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & $sExtraArgs & ' -o "download/%(title)s.%(ext)s" "' & $url & '""', @ScriptDir, @SW_SHOW)
+                    While ProcessExists($iPidDL)
+                        Local $m = GUIGetMsg()
+                        If $m = $GUI_EVENT_CLOSE Then
+                            ProcessClose($iPidDL)
+                            GUIDelete($hGuiDL)
+                            GUISetState(@SW_SHOW, $mainform)
+                            Return
+                        EndIf
+                        Sleep(10)
+                    WEnd
                     GUICtrlSetState($btn_start_dl, $GUI_ENABLE)
                     MsgBox(64, "Info", "Download Complete!")
                 EndIf
@@ -215,9 +251,12 @@ Func _ShowPlayer()
     GUICtrlSetColor(-1, 0xFFFFFF)
     $linkedit = GUICtrlCreateInput("", 10, 50, 380, 20)
 
-    $play_btn = GUICtrlCreateButton("Play (Default Player)", 50, 80, 300, 35)
-    $audio_play_btn = GUICtrlCreateButton("Play as Audio", 50, 125, 300, 35)
-    $online_play_btn = GUICtrlCreateButton("Play in Browser", 50, 170, 300, 35)
+    $play_btn = GUICtrlCreateButton("Play (Default Player) (Alt+P)", 50, 80, 300, 35)
+    $audio_play_btn = GUICtrlCreateButton("Play as Audio (Alt+A)", 50, 125, 300, 35)
+    $online_play_btn = GUICtrlCreateButton("Play in Browser (Alt+B)", 50, 170, 300, 35)
+
+    Local $aAccelPL[3][2] = [["!p", $play_btn], ["!a", $audio_play_btn], ["!b", $online_play_btn]]
+    GUISetAccelerators($aAccelPL, $hGuiPL)
 
     GUISetState(@SW_SHOW, $hGuiPL)
 
@@ -252,10 +291,13 @@ Func _ShowSearch()
     GUICtrlCreateLabel("Enter keyword to search:", 10, 15, 80, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $inp_search = GUICtrlCreateInput("", 100, 12, 210, 20)
-    $btn_search_go = GUICtrlCreateButton("Search", 320, 10, 70, 25)
+    $btn_search_go = GUICtrlCreateButton("Search (Alt+S)", 320, 10, 70, 25)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
-    $btn_search_hist = GUICtrlCreateButton("Search History", 100, 50, 210, 30)
+    $btn_search_hist = GUICtrlCreateButton("Search History (Alt+H)", 100, 50, 210, 30)
+
+    Local $aAccelSC[2][2] = [["!s", $btn_search_go], ["!h", $btn_search_hist]]
+    GUISetAccelerators($aAccelSC, $hCurrentSubGui)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
 
@@ -753,7 +795,16 @@ Func _ShowDownloadDialog($sID, $sTitle)
                 $sFmt = "-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
             EndIf
 
-            RunWait(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "download/%(title)s.%(ext)s" "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
+            Local $iPidDLNow = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "download/%(title)s.%(ext)s" "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
+            While ProcessExists($iPidDLNow)
+                Local $mDL = GUIGetMsg()
+                If $mDL = $GUI_EVENT_CLOSE Then
+                    ProcessClose($iPidDLNow)
+                    GUIDelete($hDLGui)
+                    Return
+                EndIf
+                Sleep(10)
+            WEnd
             MsgBox(64, "Info", "Download Complete!")
             ExitLoop
         EndIf
