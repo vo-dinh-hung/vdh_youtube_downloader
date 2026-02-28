@@ -1586,8 +1586,8 @@ Func _CheckGithubUpdate()
     EndIf
 
     Local $sRepoOwner = "vo-dinh-hung"
-    Local $sRepoName = "vdhYoutubeDownloader-"
-    Local $sApiUrl = "https://api.github.com/repos/vo-dinh-hung/vdhYoutubeDownloader-/releases/latest"
+    Local $sRepoName = "vdh_youtube_downloader"
+    Local $sApiUrl = "https://api.github.com/repos/vo-dinh-hung/vdh_youtube_downloader/releases/latest"
 
     Local $oHTTP = ObjCreate("WinHttp.WinHttpRequest.5.1")
     If Not IsObj($oHTTP) Then
@@ -1627,8 +1627,8 @@ Func _CheckGithubUpdate()
                 GuiSetBkColor($COLOR_WHITE)
                 GuiCtrlCreateLabel($downloadtext, 40, 60)
                 GuiSetState(@SW_SHOW, $downloadGui)
-                Local $sDownloadURL = "https://github.com/vo-dinh-hung/vdhYoutubeDownloader-/releases/latest/download/vdhYoutubeDownloader-.zip"
-                Local $sSavePath = @ScriptDir & "\vdhYoutubeDownloader-.zip"
+                Local $sDownloadURL = "https://github.com/vo-dinh-hung/vdh_youtube_downloader/releases/latest/download/vdh_youtube_downloader.zip"
+                Local $sSavePath = @ScriptDir & "\vdh_youtube_downloader.zip"
 
                 ProgressOn("Downloading Update", "Please wait while downloading...", "0%")
 
