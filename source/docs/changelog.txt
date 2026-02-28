@@ -1,0 +1,8 @@
+changes for version 1.2
+- new feature:
+  - add view changelog in help menu.
+  - add bitrate combo box in dialog download.
+  - fix some small bug.
+  - update new sound.
+  - fix bug in file unzip.
+  - add Video description.

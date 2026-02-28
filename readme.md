@@ -1,4 +1,4 @@
-## vdh YouTube Downloader
+## vdh_YouTube_Downloader
 
 This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
 
@@ -25,8 +25,8 @@ We have designed a help menu where you can find every valuable information
 - about: reading information (app_name, version v.v).
 - readme: Read the software instructions.
 - contact: Contribute ideas for software development.
-- Checked application Updates: Allows users to check for software updates when new versions are available.
-- Checked yt-dlp Updates: Automatically check for updates to the yt dlp library when new versions are available.
+- checked for Updates: Allows users to check for software updates when new versions are available.
+- Checked Updates yt_dlp: Automatically check for updates to the yt dlp library when new versions are available.
 
 ### main shortcut:
 
@@ -41,6 +41,8 @@ We have assigned keyboard shortcuts for you to easily use the software and be fl
 - alt+h: Search History.
 - control+left arrow: return to the previous video.
 - control+right arrow: go to next video.
+- control+shift+u: activate update application.
+- control+shift+y: activate update yt_dlp.
 
 ### context menu
 
@@ -55,6 +57,7 @@ After pressing enter on the search results, there will be a few more small conte
 - copy link : you can copy link to paste in editing tools.
 - Open in Browser: Open search results in the default browser.
 - Add to Favorite: You can add the videos you want to listen to to your favorites list.
+- Video description: This section is for reading the video description. You can also export it to a .txt or .html file for reading.
 
 ## Contact Information:
 

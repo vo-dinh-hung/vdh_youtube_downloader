@@ -1,9 +1,9 @@
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Res_Comment=nothing
 #AutoIt3Wrapper_Res_Description=This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
-#AutoIt3Wrapper_Res_Fileversion=1.1
+#AutoIt3Wrapper_Res_Fileversion=1.2
 #AutoIt3Wrapper_Res_ProductName=Vdh_youtube_downloader+
-#AutoIt3Wrapper_Res_ProductVersion=1.1
+#AutoIt3Wrapper_Res_ProductVersion=1.2
 #AutoIt3Wrapper_Res_CompanyName=vdh productions
 #AutoIt3Wrapper_Res_LegalCopyright=copyright 2026 by vdh productions
 #AutoIt3Wrapper_Res_LegalTradeMarks=nothing
@@ -19,8 +19,9 @@
 #include <Array.au3>
 #include <GuiMenu.au3>
 
-Global $version = "1.1"
+Global $version = "1.2"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
+Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe" ; Định nghĩa đường dẫn file python exe
 Global $dll = DllOpen("user32.dll")
 
 Global $aSearchIds[1]
@@ -79,12 +80,13 @@ Global $btn_Menu_FV = GUICtrlCreateButton("Favorite Videos (Alt+F)", 50, 210, 10
 Global $btn_Menu_HS = GUICtrlCreateButton("Watch History (Alt+H)", 150, 210, 100, 40)
 
 Global $menu = GUICtrlCreateMenu("Help")
-Global $menu_about = GUICtrlCreateMenuItem("About", $menu)
-Global $menu_readme = GUICtrlCreateMenuItem("Readme", $menu)
-Global $menu_contact = GUICtrlCreateMenuItem("Contact", $menu)
-Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked for updates &yt_dlp", $menu)
-Global $menu_Update_app = GUICtrlCreateMenuItem("Checked for &Updates", $menu)
-Global $menu_exit = GUICtrlCreateMenuItem("Exit", $menu)
+Global $menu_about = GUICtrlCreateMenuItem("About...", $menu)
+Global $menu_readme = GUICtrlCreateMenuItem("Readme...", $menu)
+Global $menu_contact = GUICtrlCreateMenuItem("Contact...", $menu)
+Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked for updates &yt_dlp...", $menu)
+Global $menu_Update_app = GUICtrlCreateMenuItem("Checked for &Updates...", $menu)
+Global $menu_exit = GUICtrlCreateMenuItem("Exit...", $menu)
+Global $menuChangelog = GuiCtrlCreateMenuItem("view changelog...", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
 
@@ -149,6 +151,9 @@ While 1
         Case $menu_Update_app, $hDummyUpdateApp
             SoundPlay("sounds/enter.wav")
             _CheckGithubUpdate()
+        Case $menuChangelog
+            SoundPlay("sounds/enter.wav")
+            _ShowChangelog()
         Case $hDummyUpdateYTDLP
             SoundPlay("sounds/enter.wav")
             _Check_YTDLP_Update()
@@ -606,23 +611,24 @@ Func _ShowContextMenu($bIsFavContext = False)
 
     Local $hMenu = _GUICtrlMenu_CreatePopup()
     
-    _GUICtrlMenu_AddMenuItem($hMenu, "Play", 1001)
-    _GUICtrlMenu_AddMenuItem($hMenu, "Play as audio", 1002)
-    _GUICtrlMenu_AddMenuItem($hMenu, "Download", 1003)
-    _GUICtrlMenu_AddMenuItem($hMenu, "Go to channel", 1004)
-    _GUICtrlMenu_AddMenuItem($hMenu, "Open in Browser", 1005)
-    _GUICtrlMenu_AddMenuItem($hMenu, "Copy Link", 1006)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Play...", 1001)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Play as &audio...", 1002)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Download...", 1003)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Go to channel...", 1004)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Open in Browser...", 1005)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Copy Link...", 1006)
+    _GUICtrlMenu_AddMenuItem($hMenu, "&Video Description...", 1008)
 
     Local $sID = $aSearchIds[$iIndex + 1]
     Local $bIsAlreadyFav = _IsFavorite($sID)
 
     Local $sFavText
     If $bIsFavContext = 1 Then
-        $sFavText = "Remove from Favorite"
+        $sFavText = "Remove from Favorite..."
     ElseIf $bIsFavContext = 2 Then
-        $sFavText = "Delete from History"
+        $sFavText = "Delete from &History..."
     Else
-        $sFavText = $bIsAlreadyFav ? "Remove from Favorite" : "Add to Favorite"
+        $sFavText = $bIsAlreadyFav ? "Remove from Favorite..." : "Add to &Favorite..."
     EndIf
     _GUICtrlMenu_AddMenuItem($hMenu, $sFavText, 1007)
 
@@ -657,6 +663,8 @@ Func _ShowContextMenu($bIsFavContext = False)
             _Action_OpenBrowser($iIndex)
         Case 1006
             _Action_CopyLink($iIndex)
+        Case 1008
+            _Action_ShowDescription($iIndex)
     EndSwitch
 EndFunc
 
@@ -670,6 +678,45 @@ EndFunc
 Func _Action_OpenBrowser($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     ShellExecute("https://www.youtube.com/watch?v=" & $aSearchIds[$iIndex + 1])
+EndFunc
+
+Func _Action_ShowDescription($iIndex)
+    If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
+    Local $sID = $aSearchIds[$iIndex + 1]
+    
+    If Not FileExists($DESC_EXE_PATH) Then
+        MsgBox(16, "Error", "description.exe not found in lib folder!")
+        Return
+    EndIf
+
+    Local $hWait = GUICreate("Loading...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
+    GUICtrlCreateLabel("Fetching Description from YouTube...", 10, 25, 230, 20, $SS_CENTER)
+    GUISetBkColor(0xFFFFFF, $hWait)
+    GUISetState(@SW_SHOW, $hWait)
+
+    Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    Local $bData = Binary("")
+    
+    While ProcessExists($iPID)
+        $bData &= StdoutRead($iPID, False, True) ; True = Binary Mode
+        Sleep(10)
+    WEnd
+    $bData &= StdoutRead($iPID, False, True)
+    
+    GUIDelete($hWait)
+    
+    Local $sDesc = BinaryToString($bData, 4) ; 4 = UTF-8
+
+    If $sDesc = "" Then
+        MsgBox(64, "Info", "No description available for this video.")
+    Else
+        Local $sTempFile = @TempDir & "\temp_desc.txt"
+        Local $hFile = FileOpen($sTempFile, 2 + 256) ; 2 = Write, 256 = UTF-8 encoding
+        FileWrite($hFile, $sDesc)
+        FileClose($hFile)
+
+        Run('"' & $DESC_EXE_PATH & '" "' & $sTempFile & '"')
+    EndIf
 EndFunc
 
 Func _Action_GoChannel($iIndex)
@@ -1623,4 +1670,26 @@ Exit
     Else
         MsgBox(16, "Error", "Could not parse version information.")
     EndIf
+EndFunc
+Func _ShowChangelog()
+    Local $sFilePath = "docs\changelog.txt"
+    Local $sContent = "No changelog found."
+
+    If FileExists($sFilePath) Then
+        $sContent = FileRead($sFilePath)
+    EndIf
+
+    Local $hChangelogGUI = GuiCreate("Changelog", 400, 450)
+    Local $editChangelog = GUICtrlCreateEdit($sContent, 10, 10, 380, 380, BitOR($ES_AUTOVSCROLL, $ES_READONLY, $WS_VSCROLL, $WS_TABSTOP))
+    Local $btnClose = GUICtrlCreateButton("&Close", 150, 400, 100, 30, $WS_TABSTOP)
+
+    GuiSetState(@SW_SHOW, $hChangelogGUI)
+
+    While 1
+        Switch GuiGetMSG()
+            Case $GUI_EVENT_CLOSE, $btnClose
+                GuiDelete($hChangelogGUI)
+                ExitLoop
+        EndSwitch
+    WEnd
 EndFunc

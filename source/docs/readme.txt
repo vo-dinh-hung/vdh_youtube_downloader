@@ -17,8 +17,8 @@ exit: you can exit the Program or press alt+f4 to close application.
 about: reading information (app_name, version v.v).
 readme: Read the software instructions.
 contact: Contribute ideas for software development.
-Checked application Updates: Allows users to check for software updates when new versions are available.
-Checked yt-dlp Updates: Automatically check for updates to the yt dlp library when new versions are available.
+Checked for Updates: Allows users to check for software updates when new versions are available.
+Checked for Updates yt_dlp: Automatically check for updates to the yt dlp library when new versions are available.
 main shortcut:
 We have assigned keyboard shortcuts for you to easily use the software and be flexible in your operations.
 home: beginning of the video
@@ -30,6 +30,8 @@ alt+b: open in Browser.
 alt+h: Search History.
 control+left arrow: return to the previous video.
 control+right arrow: go to next video.
+control+shift+u: activate update application.
+control+shift+y: activate update yt_dlp.
 context menu
 After pressing enter on the search results, there will be a few more small context menu:
 play: activate play video.
@@ -41,6 +43,7 @@ download button: when press, activate download video.
 copy link : you can copy link to paste in editing tools.
 Open in Browser: Open search results in the default browser.
 Add to Favorite: You can add the videos you want to listen to to your favorites list.
+Video description: This section is for reading the video description. You can also export it to a .txt or .html file for reading.
 Contact Information:
 If you would like to provide feedback, you can contact me through the following methods:
 Phone: 0366934510
