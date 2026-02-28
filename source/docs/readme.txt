@@ -32,6 +32,17 @@ control+left arrow: return to the previous video.
 control+right arrow: go to next video.
 control+shift+u: activate update application.
 control+shift+y: activate update yt_dlp.
+Ctrl + Shift + T: Read Total Duration.
+control+t: Read Elapsed Time.
+1 through 9: Jump to 10% through 90% of the video duration.
+f2: view changelog.
+R: Toggle Repeat.
+Shift + N: Next Video.
+Shift + B: Previous Video.
+N: Toggle Auto Next (Recommended Videos).
+Ctrl + W: Exit Application.
+S / D / F: Change Speed (Fast / Normal / Slow).
+(Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
 context menu
 After pressing enter on the search results, there will be a few more small context menu:
 play: activate play video.

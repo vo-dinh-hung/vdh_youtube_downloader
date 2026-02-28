@@ -43,6 +43,17 @@ We have assigned keyboard shortcuts for you to easily use the software and be fl
 - control+right arrow: go to next video.
 - control+shift+u: activate update application.
 - control+shift+y: activate update yt_dlp.
+- Ctrl + Shift + T: Read Total Duration.
+- Ctrl+t: Read Elapsed Time.
+- 1 through 9: Jump to 10% through 90% of the video duration.
+- Ctrl + W: Exit Application.
+- S / D / F: Change Speed (Fast / Normal / Slow).
+- (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
+- f2: view changelog.
+- R: Toggle Repeat.
+- Shift + N: Next Video.
+- Shift + B: Previous Video.
+- N: Toggle Auto Next (Recommended Videos).
 
 ### context menu
 

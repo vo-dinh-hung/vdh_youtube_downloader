@@ -1,3 +1,27 @@
+changes for version 1.3
+- new feature:
+  - completely removed the notification as ToolTip.
+  - add anti-scan system from windows security.
+  - Now in the media player all notifications will be read through NVDA or sapi5 if NVDA fails.
+- New shortcut:
+  - control+t: Read Elapsed Time.
+  - Ctrl + Shift + T: Read Total Duration.
+  - 1 through 9: Jump to 10% through 90% of the video duration.
+  - f2: view changelog.
+  - R: Toggle Repeat.
+  - Shift + N: Next Video.
+  - Shift + B: Previous Video.
+  - N: Toggle Auto Next (Recommended Videos).
+  - Ctrl + W: Exit Application.
+  - S / D / F: Change Speed (Fast / Normal / Slow).
+  - (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
+- new library:
+  - nvdaControllerClient64.dll: for computers using 64bit architecture.
+  - nvdaControllerClient32.dll: for computers using 32bit architecture.
+- fix bug:
+  - Removed annoying sound when using keyboard shortcuts in media player.
+  - improved navigation when interacting with screen readers in lists.
+
 changes for version 1.2
 - new feature:
   - add view changelog in help menu.

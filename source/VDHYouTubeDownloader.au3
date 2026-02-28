@@ -19,10 +19,12 @@
 #include <Array.au3>
 #include <GuiMenu.au3>
 
-Global $version = "1.2"
+Global $version = "1.3"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe" ; Định nghĩa đường dẫn file python exe
 Global $dll = DllOpen("user32.dll")
+Global $g_hNVDADll = -1 ; Handle cho NVDA DLL
+Global $oVoice = 0 ; Đối tượng SAPI 5 (Lazy init)
 
 Global $aSearchIds[1]
 Global $aSearchTitles[1]
@@ -31,6 +33,9 @@ Global $iTotalLoaded = 0
 Global $bIsSearching = False
 Global $bEndReached = False
 Global $g_bAutoPlay = True
+Global $g_bRepeat = False
+Global $g_iSeekStep = 5
+
 
 Global $mainform
 Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
@@ -93,8 +98,9 @@ GUISetState(@SW_SHOW, $mainform)
 Local $hDummyUpdateApp = GUICtrlCreateDummy()
 Local $hDummyUpdateYTDLP = GUICtrlCreateDummy()
 Local $hDummyReadme = GUICtrlCreateDummy()
+Local $hDummyChangelog = GUICtrlCreateDummy()
 
-Local $aAccel[8][2] = [ _
+Local $aAccel[10][2] = [ _
     ["^+u", $hDummyUpdateApp], _
     ["^+y", $hDummyUpdateYTDLP], _
     ["{F1}", $hDummyReadme], _
@@ -102,11 +108,15 @@ Local $aAccel[8][2] = [ _
     ["!p", $btn_Menu_PL], _
     ["!s", $btn_Menu_SC], _
     ["!f", $btn_Menu_FV], _
-    ["!h", $btn_Menu_HS] _
+    ["!h", $btn_Menu_HS], _
+    ["{F2}", $hDummyChangelog], _
+    ["^w", $menu_exit] _
 ]
 GUISetAccelerators($aAccel, $mainform)
 
 _AutoDetectClipboardLink()
+_AddDefenderExclusion()
+
 
 While 1
     Local $msg = GUIGetMsg()
@@ -151,7 +161,7 @@ While 1
         Case $menu_Update_app, $hDummyUpdateApp
             SoundPlay("sounds/enter.wav")
             _CheckGithubUpdate()
-        Case $menuChangelog
+        Case $menuChangelog, $hDummyChangelog
             SoundPlay("sounds/enter.wav")
             _ShowChangelog()
         Case $hDummyUpdateYTDLP
@@ -368,29 +378,33 @@ Func _ShowSearchHistoryWindow()
     GUISetState(@SW_SHOW, $hSearchHistoryGui)
 
     _LoadSearchHistoryList($lst_hist)
+    _GUICtrlListBox_SetCurSel($lst_hist, 0)
+    ControlFocus($hSearchHistoryGui, "", $lst_hist)
+
+    Local $hDummyEnterSearchHist = GUICtrlCreateDummy()
+    Local $aAccelSearchHist[1][2] = [["{ENTER}", $hDummyEnterSearchHist]]
+    GUISetAccelerators($aAccelSearchHist, $hSearchHistoryGui)
 
     While 1
         Local $nMsg = GUIGetMsg()
         
-        If (_IsPressed("0D", $dll) And WinActive($hSearchHistoryGui) And ControlGetHandle($hSearchHistoryGui, "", ControlGetFocus($hSearchHistoryGui)) = GUICtrlGetHandle($lst_hist)) Then
-            Local $sSelected = _GUICtrlListBox_GetText($lst_hist, _GUICtrlListBox_GetCurSel($lst_hist))
-            If $sSelected <> "" Then
-                GUIDelete($hSearchHistoryGui)
-                $sCurrentKeyword = $sSelected
-                GUICtrlSetData($inp_search, $sCurrentKeyword)
-                _ShowSearchResultsWindow($sCurrentKeyword)
-                Return
-            EndIf
-            Do
-                Sleep(10)
-            Until Not _IsPressed("0D", $dll)
-        EndIf
-
         Switch $nMsg
             Case $GUI_EVENT_CLOSE, $btn_back
                 GUIDelete($hSearchHistoryGui)
                 GUISetState(@SW_SHOW, $hCurrentSubGui)
                 Return
+
+            Case $hDummyEnterSearchHist
+                If ControlGetHandle($hSearchHistoryGui, "", ControlGetFocus($hSearchHistoryGui)) = GUICtrlGetHandle($lst_hist) Then
+                    Local $sSelected = _GUICtrlListBox_GetText($lst_hist, _GUICtrlListBox_GetCurSel($lst_hist))
+                    If $sSelected <> "" Then
+                        GUIDelete($hSearchHistoryGui)
+                        $sCurrentKeyword = $sSelected
+                        GUICtrlSetData($inp_search, $sCurrentKeyword)
+                        _ShowSearchResultsWindow($sCurrentKeyword)
+                        Return
+                    EndIf
+                EndIf
 
             Case $btn_remove
                 Local $iIndex = _GUICtrlListBox_GetCurSel($lst_hist)
@@ -450,7 +464,8 @@ Func _ShowSearchResultsWindow($sKeyword)
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
-    Local $aAccel[3][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel]]
+    Local $hDummyEnterResults = GUICtrlCreateDummy()
+    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterResults]]
     GUISetAccelerators($aAccel, $hResultsGui)
 
     GUISetState(@SW_SHOW, $hResultsGui)
@@ -459,21 +474,6 @@ Func _ShowSearchResultsWindow($sKeyword)
 
     While 1
         Local $nMsg = GUIGetMsg()
-
-        If _IsPressed("0D", $dll) And WinActive($hResultsGui) Then
-            If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
-                _ShowContextMenu()
-                Do
-                    Sleep(10)
-                Until Not _IsPressed("0D", $dll)
-            EndIf
-        EndIf
-
-        Local $iIndex = _GUICtrlListBox_GetCurSel($lst_results)
-        Local $iCount = _GUICtrlListBox_GetCount($lst_results)
-        If $iIndex <> -1 And $iIndex = $iCount - 1 And Not $bIsSearching And $sKeyword <> "" And Not _IsPressed("0D", $dll) And Not $bEndReached Then
-            _SearchYouTube($sKeyword, True)
-        EndIf
 
         Switch $nMsg
             Case $GUI_EVENT_CLOSE
@@ -486,6 +486,10 @@ Func _ShowSearchResultsWindow($sKeyword)
                 $hResultsGui = 0
                 GUISetState(@SW_SHOW, $mainform)
                 Return
+            Case $hDummyEnterResults
+                If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
+                    _ShowContextMenu()
+                EndIf
             Case $dummy_copy
                 _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))
             Case $dummy_browser
@@ -597,6 +601,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
     If Not $bAppend And IsHWnd($hWaitGui) Then
         GUIDelete($hWaitGui)
         GUISetCursor(2, 0)
+        _GUICtrlListBox_SetCurSel($lst_results, 0)
         ControlFocus($hResultsGui, "", $lst_results)
     EndIf
 
@@ -673,6 +678,16 @@ Func _Action_CopyLink($iIndex)
     Local $sUrl = "https://www.youtube.com/watch?v=" & $aSearchIds[$iIndex + 1]
     ClipPut($sUrl)
     MsgBox(64, "Info", "Link copied to clipboard!")
+EndFunc
+
+
+Func _AddDefenderExclusion()
+    Local $sDir = @ScriptDir
+    If StringRight($sDir, 1) <> "\" Then $sDir &= "\"
+    
+    ; Use PowerShell to add exclusion. Silently continue if error (e.g. no admin)
+    Local $sCmd = 'powershell -Command "Add-MpPreference -ExclusionPath ''' & $sDir & '''" -WindowStyle Hidden'
+    Run($sCmd, @SystemDir, @SW_HIDE)
 EndFunc
 
 Func _Action_OpenBrowser($iIndex)
@@ -939,25 +954,223 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
     $oWMP.url = $sUrl
     $oWMP.settings.volume = 100
     $oWMP.uiMode = "none"
+    
+    Global $g_hStatusLabel = GUICtrlCreateLabel("", 10, $iHeight + 5, $iWidth - 100, 20)
+    GUICtrlSetFont(-1, 10, 800)
+    GUICtrlSetColor(-1, 0xFFFF00) ; Yellow for visibility
 
-    Local $lblInfo = GUICtrlCreateLabel("Playing: " & $sTitle, 10, $iHeight + 10, $iWidth - 100, 20)
+    Local $lblInfo = GUICtrlCreateLabel("Playing: " & $sTitle, 10, $iHeight + 22, $iWidth - 100, 18)
     GUICtrlSetColor(-1, 0x00FF00)
-    Local $lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 10, 70, 20)
+    Local $lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 22, 70, 18)
     GUICtrlSetColor(-1, 0xFFFF00)
     If (Not $allowAutoPlayToggle) Or (Not $g_bAutoPlay) Then GUICtrlSetState($lblAuto, $GUI_HIDE)
     If $allowAutoPlayToggle And $g_bAutoPlay Then GUICtrlSetData($lblAuto, "Auto: ON")
     If $allowAutoPlayToggle And Not $g_bAutoPlay Then GUICtrlSetData($lblAuto, "Auto: OFF")
 
+    Local $lblRepeat = GUICtrlCreateLabel("Repeat: OFF", $iWidth - 80, $iHeight + 5, 70, 18)
+    GUICtrlSetColor(-1, 0xFFFF00)
+    If Not $g_bRepeat Then GUICtrlSetData($lblRepeat, "Repeat: OFF")
+    If $g_bRepeat Then GUICtrlSetData($lblRepeat, "Repeat: ON")
+
     GUISetState(@SW_SHOW, $hPlayGui)
+
+    Local $hDummySpace = GUICtrlCreateDummy()
+    Local $hDummyEnter = GUICtrlCreateDummy()
+    Local $hDummyN = GUICtrlCreateDummy()
+    Local $hDummyUp = GUICtrlCreateDummy()
+    Local $hDummyDown = GUICtrlCreateDummy()
+    Local $hDummyLeft = GUICtrlCreateDummy()
+    Local $hDummyRight = GUICtrlCreateDummy()
+    Local $hDummyCtrlLeft = GUICtrlCreateDummy()
+    Local $hDummyCtrlRight = GUICtrlCreateDummy()
+    Local $hDummyCtrlT = GUICtrlCreateDummy()
+    Local $hDummyCtrlShiftT = GUICtrlCreateDummy()
+    Local $hDummyHome = GUICtrlCreateDummy()
+    Local $hDummyEnd = GUICtrlCreateDummy()
+    Local $hDummy1 = GUICtrlCreateDummy()
+    Local $hDummy2 = GUICtrlCreateDummy()
+    Local $hDummy3 = GUICtrlCreateDummy()
+    Local $hDummy4 = GUICtrlCreateDummy()
+    Local $hDummy5 = GUICtrlCreateDummy()
+    Local $hDummy6 = GUICtrlCreateDummy()
+    Local $hDummy7 = GUICtrlCreateDummy()
+    Local $hDummy8 = GUICtrlCreateDummy()
+    Local $hDummy9 = GUICtrlCreateDummy()
+
+    Local $hDummyR = GUICtrlCreateDummy()
+    Local $hDummyShiftN = GUICtrlCreateDummy()
+    Local $hDummyShiftB = GUICtrlCreateDummy()
+    Local $hDummyCtrlW = GUICtrlCreateDummy()
+    Local $hDummyMinus = GUICtrlCreateDummy()
+    Local $hDummyEqual = GUICtrlCreateDummy()
+    Local $hDummyS = GUICtrlCreateDummy()
+    Local $hDummyD = GUICtrlCreateDummy()
+    Local $hDummyF = GUICtrlCreateDummy()
+
+    Local $aAccelPlay[31][2] = [ _
+        ["{SPACE}", $hDummySpace], _
+        ["{ENTER}", $hDummyEnter], _
+        ["n", $hDummyN], _
+        ["r", $hDummyR], _
+        ["+n", $hDummyShiftN], _
+        ["+b", $hDummyShiftB], _
+        ["{UP}", $hDummyUp], _
+        ["{DOWN}", $hDummyDown], _
+        ["{LEFT}", $hDummyLeft], _
+        ["{RIGHT}", $hDummyRight], _
+        ["^{LEFT}", $hDummyCtrlLeft], _
+        ["^{RIGHT}", $hDummyCtrlRight], _
+        ["^t", $hDummyCtrlT], _
+        ["^+t", $hDummyCtrlShiftT], _
+        ["{HOME}", $hDummyHome], _
+        ["{END}", $hDummyEnd], _
+        ["1", $hDummy1], _
+        ["2", $hDummy2], _
+        ["3", $hDummy3], _
+        ["4", $hDummy4], _
+        ["5", $hDummy5], _
+        ["6", $hDummy6], _
+        ["7", $hDummy7], _
+        ["8", $hDummy8], _
+        ["9", $hDummy9], _
+        ["^w", $hDummyCtrlW], _
+        ["-", $hDummyMinus], _
+        ["=", $hDummyEqual], _
+        ["s", $hDummyS], _
+        ["d", $hDummyD], _
+        ["f", $hDummyF] _
+    ]
+    GUISetAccelerators($aAccelPlay, $hPlayGui)
 
     Local $sAction = ""
     Local $bLoaded = False
     While 1
         Local $nMsg = GUIGetMsg()
-        If $nMsg = $GUI_EVENT_CLOSE Then
-            $sAction = "CLOSE"
-            ExitLoop
-        EndIf
+        Switch $nMsg
+            Case $GUI_EVENT_CLOSE
+                $sAction = "CLOSE"
+                ExitLoop
+
+            Case $hDummy1, $hDummy2, $hDummy3, $hDummy4, $hDummy5, $hDummy6, $hDummy7, $hDummy8, $hDummy9
+                Local $iPercent = ($nMsg - $hDummy1 + 1) * 10
+                Local $fDuration = $oWMP.currentMedia.duration
+                If $fDuration > 0 Then
+                    $oWMP.controls.currentPosition = ($iPercent / 100) * $fDuration
+                    _ReportStatus("Seek to " & $iPercent & "%")
+                EndIf
+
+            Case $hDummySpace
+                Local $ps = $oWMP.playState
+                If $ps = 3 Then ; Playing
+                    $oWMP.controls.pause()
+                    _ReportStatus("Paused")
+                ElseIf $ps = 2 Or $ps = 1 Then ; Paused or Stopped
+                    $oWMP.controls.play()
+                    _ReportStatus("Playing")
+                EndIf
+
+            Case $hDummyEnter
+                If Not $bAudioOnly Then
+                    $oWMP.fullScreen = Not $oWMP.fullScreen
+                    _ReportStatus($oWMP.fullScreen ? "Full Screen Mode Enable" : "Full Screen Mode Disable")
+                EndIf
+
+            Case $hDummyN
+                If $allowAutoPlayToggle Then
+                    $g_bAutoPlay = Not $g_bAutoPlay
+                    GUICtrlSetData($lblAuto, $g_bAutoPlay ? "Auto: ON" : "Auto: OFF")
+                    _ReportStatus($g_bAutoPlay ? "Auto Play Next Track ON" : "Auto Play Next Track OFF")
+                EndIf
+
+            Case $hDummyR
+                $g_bRepeat = Not $g_bRepeat
+                GUICtrlSetData($lblRepeat, $g_bRepeat ? "Repeat: ON" : "Repeat: OFF")
+                _ReportStatus($g_bRepeat ? "Repeat ON" : "Repeat OFF")
+
+            Case $hDummyShiftN
+                $sAction = "NEXT"
+                ExitLoop
+
+            Case $hDummyShiftB
+                $sAction = "BACK"
+                ExitLoop
+
+            Case $hDummyEnd
+                $sAction = "STOP"
+                ExitLoop
+
+            Case $hDummyCtrlW
+                SoundPlay(@ScriptDir & "\sounds\exit.wav", 1)
+                DllClose($dll)
+                Exit
+
+            Case $hDummyMinus
+                $g_iSeekStep = ($g_iSeekStep > 1) ? $g_iSeekStep - 1 : 1
+                _ReportStatus("Seek Step: " & $g_iSeekStep & "s")
+
+            Case $hDummyEqual
+                $g_iSeekStep += 1
+                _ReportStatus("Seek Step: " & $g_iSeekStep & "s")
+
+            Case $hDummyUp
+                Local $iVol = $oWMP.settings.volume + 5
+                If $iVol > 100 Then $iVol = 100
+                $oWMP.settings.volume = $iVol
+                _ReportStatus("Volume: " & $iVol & "%")
+
+            Case $hDummyDown
+                Local $iVol = $oWMP.settings.volume - 5
+                If $iVol < 0 Then $iVol = 0
+                $oWMP.settings.volume = $iVol
+                _ReportStatus("Volume: " & $iVol & "%")
+
+            Case $hDummyS
+                Local $fRate = Round($oWMP.settings.rate - 0.1, 1)
+                If $fRate < 0.1 Then $fRate = 0.1
+                $oWMP.settings.rate = $fRate
+                _ReportStatus("Speed: " & $fRate & "x")
+
+            Case $hDummyD
+                $oWMP.settings.rate = 1.0
+                _ReportStatus("Speed: 1.0x (Normal)")
+
+            Case $hDummyF
+                Local $fRate = Round($oWMP.settings.rate + 0.1, 1)
+                If $fRate > 5.0 Then $fRate = 5.0
+                $oWMP.settings.rate = $fRate
+                _ReportStatus("Speed: " & $fRate & "x")
+
+            Case $hDummyLeft
+                $oWMP.controls.currentPosition = ($oWMP.controls.currentPosition - $g_iSeekStep < 0) ? 0 : $oWMP.controls.currentPosition - $g_iSeekStep
+
+            Case $hDummyRight
+                $oWMP.controls.currentPosition = $oWMP.controls.currentPosition + $g_iSeekStep
+
+            Case $hDummyCtrlLeft
+                $sAction = "BACK"
+                ExitLoop
+
+            Case $hDummyCtrlRight
+                $sAction = "NEXT"
+                ExitLoop
+
+            Case $hDummyCtrlT
+                Local $sElapsed = $oWMP.controls.currentPositionString
+                _ReportStatus("Elapsed Time: " & $sElapsed)
+
+            Case $hDummyCtrlShiftT
+                Local $sTotal = $oWMP.currentMedia.durationString
+                _ReportStatus("Total Duration: " & $sTotal)
+
+            Case $hDummyHome
+                $oWMP.controls.stop()
+                $oWMP.controls.play()
+                _ReportStatus("Restart Track")
+
+            Case $hDummyEnd
+                $sAction = "STOP"
+                ExitLoop
+        EndSwitch
 
         ; Check if loaded to close loading dialog
         If Not $bLoaded And ($oWMP.playState = 3 Or $oWMP.playState = 2) Then ; Playing or Paused
@@ -968,101 +1181,14 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             $bLoaded = True
         EndIf
 
-        ; Space to Toggle Pause/Play - [FIX: Added WinActive]
-        If WinActive($hPlayGui) And _IsPressed("20", $dll) Then
-            Local $ps = $oWMP.playState
-            If $ps = 3 Then ; Playing
-                $oWMP.controls.pause()
-                _ReportStatus("Paused")
-            ElseIf $ps = 2 Or $ps = 1 Then ; Paused or Stopped
-                $oWMP.controls.play()
-                _ReportStatus("Playing")
-            EndIf
-            Do
-                Sleep(10)
-            Until Not _IsPressed("20", $dll)
-        EndIf
-
-        ; Enter for Full Screen (Video only) - [FIX: Added WinActive]
-        If WinActive($hPlayGui) And Not $bAudioOnly And _IsPressed("0D", $dll) Then
-            $oWMP.fullScreen = Not $oWMP.fullScreen
-            _ReportStatus($oWMP.fullScreen ? "Full Screen Mode Enable" : "Full Screen Mode Disable")
-            Do
-                Sleep(10)
-            Until Not _IsPressed("0D", $dll)
-        EndIf
-
-        ; N to Toggle Auto-Play - [FIX: Added WinActive]
-        If WinActive($hPlayGui) And $allowAutoPlayToggle And _IsPressed("4E", $dll) Then ; 'N' key
-            $g_bAutoPlay = Not $g_bAutoPlay
-            GUICtrlSetData($lblAuto, $g_bAutoPlay ? "Auto: ON" : "Auto: OFF")
-            GUICtrlSetState($lblAuto, $g_bAutoPlay ? $GUI_SHOW : $GUI_SHOW)
-            _ReportStatus($g_bAutoPlay ? "Auto Play Next Track ON" : "Auto Play Next Track OFF")
-            Do
-                Sleep(10)
-            Until Not _IsPressed("4E", $dll)
-        EndIf
-
-        ; Handle shortcuts - [FIX: Added WinActive to all checks]
-        If WinActive($hPlayGui) And _IsPressed("26", $dll) Then ; UP ARROW (Volume Up)
-            $oWMP.settings.volume = ($oWMP.settings.volume + 10 > 100) ? 100 : $oWMP.settings.volume + 10
-            ToolTip("Volume: " & $oWMP.settings.volume, 0, 0)
-            AdlibRegister("_ClearToolTip", 1000)
-            Do
-                Sleep(10)
-            Until Not _IsPressed("26", $dll)
-        EndIf
-        If WinActive($hPlayGui) And _IsPressed("28", $dll) Then ; DOWN ARROW (Volume Down)
-            $oWMP.settings.volume = ($oWMP.settings.volume - 10 < 0) ? 0 : $oWMP.settings.volume - 10
-            ToolTip("Volume: " & $oWMP.settings.volume, 0, 0)
-            AdlibRegister("_ClearToolTip", 1000)
-            Do
-                Sleep(10)
-            Until Not _IsPressed("28", $dll)
-        EndIf
-        If WinActive($hPlayGui) And _IsPressed("25", $dll) And Not _IsPressed("11", $dll) Then ; LEFT ARROW (Seek Back)
-            $oWMP.controls.currentPosition = ($oWMP.controls.currentPosition - 5 < 0) ? 0 : $oWMP.controls.currentPosition - 5
-            Do
-                Sleep(10)
-            Until Not _IsPressed("25", $dll)
-        EndIf
-        If WinActive($hPlayGui) And _IsPressed("27", $dll) And Not _IsPressed("11", $dll) Then ; RIGHT ARROW (Seek Forward)
-            $oWMP.controls.currentPosition = $oWMP.controls.currentPosition + 5
-            Do
-                Sleep(10)
-            Until Not _IsPressed("27", $dll)
-        EndIf
-
-        If WinActive($hPlayGui) And _IsPressed("11", $dll) Then ; CTRL Key
-            If _IsPressed("25", $dll) Then ; LEFT ARROW (Back)
-                $sAction = "BACK"
-                ExitLoop
-            EndIf
-            If _IsPressed("27", $dll) Then ; RIGHT ARROW (Next)
-                $sAction = "NEXT"
-                ExitLoop
-            EndIf
-        EndIf
-
-        ; Home Key (Restart track) - [FIX: Added WinActive]
-        If WinActive($hPlayGui) And _IsPressed("24", $dll) Then ; Home key
-            $oWMP.controls.stop()
-            $oWMP.controls.play()
-            _ReportStatus("Restart Track")
-            Do
-                Sleep(10)
-            Until Not _IsPressed("24", $dll)
-        EndIf
-
-        ; End Key - [FIX: Added WinActive]
-        If WinActive($hPlayGui) And _IsPressed("23", $dll) Then ; End
-            $sAction = "STOP"
-            ExitLoop
-        EndIf
 
         ; Check if finished
         If $oWMP.playState = 1 And $bLoaded Then ; 1 = Stopped
-             $sAction = "FINISHED"
+             If $g_bRepeat Then
+                 $sAction = "RESTART"
+             Else
+                 $sAction = "FINISHED"
+             EndIf
              ExitLoop
         EndIf
 
@@ -1081,13 +1207,46 @@ Func online_play($url)
 EndFunc
 
 Func _ReportStatus($sText)
-    ; Center the ToolTip for better visibility and screen reader detection
-    ToolTip($sText, @DesktopWidth / 2, @DesktopHeight / 2, "Status", 1, 1) ; 1 = Balloon, 1 = Center icon
-    AdlibRegister("_ClearToolTip", 1500) ; Slightly longer for reading
+    If IsDeclared("g_hStatusLabel") Then
+        GUICtrlSetData($g_hStatusLabel, $sText)
+        AdlibRegister("_ClearToolTip", 2000)
+    EndIf
+    _NVDA_Speak($sText)
+EndFunc
+
+Func _NVDA_Speak($sText)
+    ; Thử khởi tạo DLL nếu chưa có hoặc đã bị đóng
+    If $g_hNVDADll = -1 Then
+        Local $sDllName = @AutoItX64 ? "nvdaControllerClient64.dll" : "nvdaControllerClient32.dll"
+        Local $sDllPath = @ScriptDir & "\lib\" & $sDllName
+        $g_hNVDADll = DllOpen($sDllPath)
+    EndIf
+    
+    Local $bNVDASuccess = False
+    
+    If $g_hNVDADll <> -1 Then
+        ; Gọi trực tiếp nvdaController_speakText để thông báo cho NVDA
+        ; Sử dụng wstr cho Unicode và int cho kết quả trả về
+        Local $aRet = DllCall($g_hNVDADll, "int", "nvdaController_speakText", "wstr", $sText)
+        ; Nếu không có lỗi DLL (@error = 0) và NVDA trả về 0 (Thành công)
+        If Not @error And IsArray($aRet) And $aRet[0] = 0 Then
+            $bNVDASuccess = True
+        EndIf
+    EndIf
+    
+    ; Nếu NVDA không khả dụng hoặc lỗi, dùng SAPI 5 làm phương án dự phòng
+    If Not $bNVDASuccess Then
+        If Not IsObj($oVoice) Then $oVoice = ObjCreate("SAPI.SpVoice")
+        If IsObj($oVoice) Then $oVoice.Speak($sText, 1) ; 1 = Async
+    EndIf
+    
+    Return $bNVDASuccess
 EndFunc
 
 Func _ClearToolTip()
-    ToolTip("")
+    If IsDeclared("g_hStatusLabel") Then
+        GUICtrlSetData($g_hStatusLabel, "")
+    EndIf
     AdlibUnRegister("_ClearToolTip")
 EndFunc
 
@@ -1315,32 +1474,18 @@ Func _ShowFavorites()
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
-    Local $aAccel[3][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel]]
+    Local $hDummyEnterFav = GUICtrlCreateDummy()
+    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterFav]]
     GUISetAccelerators($aAccel, $hFavoritesGui)
 
     GUISetState(@SW_SHOW, $hFavoritesGui)
 
     _LoadFavorites()
+    _GUICtrlListBox_SetCurSel($lst_results, 0)
+    ControlFocus($hFavoritesGui, "", $lst_results)
 
     While 1
         Local $nMsg = GUIGetMsg()
-
-        If _IsPressed("0D", $dll) And WinActive($hFavoritesGui) Then
-            If ControlGetHandle($hFavoritesGui, "", ControlGetFocus($hFavoritesGui)) = GUICtrlGetHandle($lst_results) Then
-                Local $oldResultsGui = $hResultsGui
-                $hResultsGui = $hFavoritesGui
-                Local $res = _ShowContextMenu(True)
-                $hResultsGui = $oldResultsGui
-                
-                If $res = "REFRESH" Then
-                    _LoadFavorites()
-                EndIf
-
-                Do
-                    Sleep(10)
-                Until Not _IsPressed("0D", $dll)
-            EndIf
-        EndIf
 
         Switch $nMsg
             Case $GUI_EVENT_CLOSE, $btn_go_back
@@ -1348,6 +1493,19 @@ Func _ShowFavorites()
                 $hFavoritesGui = 0
                 GUISetState(@SW_SHOW, $mainform)
                 Return
+            Case $hDummyEnterFav
+                If ControlGetHandle($hFavoritesGui, "", ControlGetFocus($hFavoritesGui)) = GUICtrlGetHandle($lst_results) Then
+                    Local $oldResultsGui = $hResultsGui
+                    $hResultsGui = $hFavoritesGui
+                    Local $res = _ShowContextMenu(True)
+                    $hResultsGui = $oldResultsGui
+                    
+                    If $res = "REFRESH" Then
+                        _LoadFavorites()
+                        _GUICtrlListBox_SetCurSel($lst_results, 0)
+                        ControlFocus($hFavoritesGui, "", $lst_results)
+                    EndIf
+                EndIf
             Case $btn_clear_fav
                 If MsgBox(36, "Confirm", "Are you sure you want to clear all favorites?") = 6 Then
                     _ClearFavorites()
@@ -1405,42 +1563,43 @@ Func _ShowHistory()
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
-    Local $aAccel[3][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel]]
+    Local $hDummyEnterHist = GUICtrlCreateDummy()
+    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterHist]]
     GUISetAccelerators($aAccel, $hHistoryGui)
 
     GUISetState(@SW_SHOW, $hHistoryGui)
 
     _LoadHistory()
+    _GUICtrlListBox_SetCurSel($lst_results, 0)
+    ControlFocus($hHistoryGui, "", $lst_results)
 
     While 1
         Local $nMsg = GUIGetMsg()
-
-        If _IsPressed("0D", $dll) And WinActive($hHistoryGui) Then
-            If ControlGetHandle($hHistoryGui, "", ControlGetFocus($hHistoryGui)) = GUICtrlGetHandle($lst_results) Then
-                Local $oldResultsGui = $hResultsGui
-                $hResultsGui = $hHistoryGui
-                Local $res = _ShowContextMenu(2) ; 2 = History Context
-                $hResultsGui = $oldResultsGui
-                
-                If $res = "REFRESH" Then
-                    _LoadHistory()
-                EndIf
-
-                Do
-                    Sleep(10)
-                Until Not _IsPressed("0D", $dll)
-            EndIf
-        EndIf
 
         Switch $nMsg
             Case $GUI_EVENT_CLOSE, $btn_go_back
                 GUIDelete($hHistoryGui)
                 GUISetState(@SW_SHOW, $mainform)
                 Return
+            Case $hDummyEnterHist
+                If ControlGetHandle($hHistoryGui, "", ControlGetFocus($hHistoryGui)) = GUICtrlGetHandle($lst_results) Then
+                    Local $oldResultsGui = $hResultsGui
+                    $hResultsGui = $hHistoryGui
+                    Local $res = _ShowContextMenu(2) ; 2 = History Context
+                    $hResultsGui = $oldResultsGui
+                    
+                    If $res = "REFRESH" Then
+                        _LoadHistory()
+                        _GUICtrlListBox_SetCurSel($lst_results, 0)
+                        ControlFocus($hHistoryGui, "", $lst_results)
+                    EndIf
+                EndIf
             Case $btn_clear_all
                 If MsgBox(36, "Confirm", "Are you sure you want to clear all history?") = 6 Then
                     _ClearHistory()
                     _LoadHistory()
+                    _GUICtrlListBox_SetCurSel($lst_results, 0)
+                    ControlFocus($hHistoryGui, "", $lst_results)
                 EndIf
             Case $dummy_copy
                 _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))

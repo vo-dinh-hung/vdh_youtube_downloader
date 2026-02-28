@@ -1,4 +1,4 @@
 app name: Vdh_youtube_downloader+
-Version: 1.2
+Version: 1.3
 DevelopBy: vdh productions
 This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
