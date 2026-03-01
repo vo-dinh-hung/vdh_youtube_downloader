@@ -53,7 +53,7 @@ Global $g_iOriginalX, $g_iOriginalY, $g_iOriginalW, $g_iOriginalH
 Global $hDummySpace, $hDummyEnter, $hDummyN, $hDummyUp, $hDummyDown, $hDummyLeft, $hDummyRight
 Global $hDummyCtrlLeft, $hDummyCtrlRight, $hDummyCtrlT, $hDummyCtrlShiftT, $hDummyHome, $hDummyEnd
 Global $hDummy1, $hDummy2, $hDummy3, $hDummy4, $hDummy5, $hDummy6, $hDummy7, $hDummy8, $hDummy9
-Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE
+Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE, $hDummyEsc
 Global $g_sLastReportedText = "", $g_iLastReportedTime = 0
 Global $g_sCurrentVideoTitle = ""
 
@@ -77,7 +77,7 @@ GUISetBkColor($COLOR_BLUE)
 GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
 SoundPlay("sounds/start.wav")
-Sleep(6000) 
+Sleep(3000) 
 GUIDelete($lding)
 
 $mainform = GUICreate("VDH_YouTube_Downloader version" & $version, 300, 250)
@@ -109,8 +109,9 @@ Local $hDummyUpdateApp = GUICtrlCreateDummy()
 Local $hDummyUpdateYTDLP = GUICtrlCreateDummy()
 Local $hDummyReadme = GUICtrlCreateDummy()
 Local $hDummyChangelog = GUICtrlCreateDummy()
+Local $hDummyEscMain = GUICtrlCreateDummy()
 
-Local $aAccel[10][2] = [ _
+Local $aAccel[11][2] = [ _
     ["^+u", $hDummyUpdateApp], _
     ["^+y", $hDummyUpdateYTDLP], _
     ["{F1}", $hDummyReadme], _
@@ -120,7 +121,8 @@ Local $aAccel[10][2] = [ _
     ["!f", $btn_Menu_FV], _
     ["!h", $btn_Menu_HS], _
     ["{F2}", $hDummyChangelog], _
-    ["^w", $menu_exit] _
+    ["^w", $menu_exit], _
+    ["{ESC}", $hDummyEscMain] _
 ]
 GUISetAccelerators($aAccel, $mainform)
 
@@ -177,9 +179,8 @@ While 1
         Case $hDummyUpdateYTDLP
             SoundPlay("sounds/enter.wav")
             _Check_YTDLP_Update()
-        Case $hDummyReadme
-            SoundPlay("sounds/enter.wav")
-            _Show_Readme_Window()
+        Case $hDummyEscMain
+            ; Prevent closing with Escape
     EndSwitch
 WEnd
 
@@ -196,15 +197,17 @@ Func _ShowDownloader()
 
     $paste = GUICtrlCreateButton("Paste Link (Alt+P)", 320, 75, 70, 20)
 
-    GUICtrlCreateLabel("Select Format:", 10, 75, 200, 20)
+    GUICtrlCreateLabel("Select Format (Tab to navigate):", 10, 75, 200, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
-    $cbo_dl_format = GUICtrlCreateCombo("Video MP4 (Best)", 10, 100, 280, 20)
+    $cbo_dl_format = GUICtrlCreateCombo("Video MP4 (Best)", 10, 100, 280, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetTip(-1, "Use Arrow keys to select download format")
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
 
     $btn_start_dl = GUICtrlCreateButton("Download (Alt+D)", 10, 150, 380, 40)
     $openbtn = GUICtrlCreateButton("Open Download Folder (Alt+O)", 10, 200, 380, 30)
 
-    Local $aAccelDL[3][2] = [["!p", $paste], ["!d", $btn_start_dl], ["!o", $openbtn]]
+    Local $hDummyEscDL = GUICtrlCreateDummy()
+    Local $aAccelDL[4][2] = [["!p", $paste], ["!d", $btn_start_dl], ["!o", $openbtn], ["{ESC}", $hDummyEscDL]]
     GUISetAccelerators($aAccelDL, $hGuiDL)
 
     GUISetState(@SW_SHOW, $hGuiDL)
@@ -212,7 +215,7 @@ Func _ShowDownloader()
     While 1
         Local $nMsg = GUIGetMsg()
         Switch $nMsg
-            Case $GUI_EVENT_CLOSE
+            Case $GUI_EVENT_CLOSE, $hDummyEscDL
                 GUIDelete($hGuiDL)
                 GUISetState(@SW_SHOW, $mainform)
                 ExitLoop
@@ -258,7 +261,7 @@ Func _ShowDownloader()
                             GUISetState(@SW_SHOW, $mainform)
                             Return
                         EndIf
-                        Sleep(10)
+                        Sleep(1)
                     WEnd
                     GUICtrlSetState($btn_start_dl, $GUI_ENABLE)
                     MsgBox(64, "Info", "Download Complete!")
@@ -280,7 +283,8 @@ Func _ShowPlayer()
     $audio_play_btn = GUICtrlCreateButton("Play as Audio (Alt+A)", 50, 125, 300, 35)
     $online_play_btn = GUICtrlCreateButton("Play in Browser (Alt+B)", 50, 170, 300, 35)
 
-    Local $aAccelPL[3][2] = [["!p", $play_btn], ["!a", $audio_play_btn], ["!b", $online_play_btn]]
+    Local $hDummyEscPL = GUICtrlCreateDummy()
+    Local $aAccelPL[4][2] = [["!p", $play_btn], ["!a", $audio_play_btn], ["!b", $online_play_btn], ["{ESC}", $hDummyEscPL]]
     GUISetAccelerators($aAccelPL, $hGuiPL)
 
     GUISetState(@SW_SHOW, $hGuiPL)
@@ -288,7 +292,7 @@ Func _ShowPlayer()
     While 1
         Local $nMsg = GUIGetMsg()
         Switch $nMsg
-            Case $GUI_EVENT_CLOSE
+            Case $GUI_EVENT_CLOSE, $hDummyEscPL
                 GUIDelete($hGuiPL)
                 GUISetState(@SW_SHOW, $mainform)
                 ExitLoop
@@ -475,7 +479,18 @@ Func _ShowSearchResultsWindow($sKeyword)
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
     Local $hDummyEnterResults = GUICtrlCreateDummy()
-    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterResults]]
+    Local $hDummyHomeResults = GUICtrlCreateDummy()
+    Local $hDummyEndResults = GUICtrlCreateDummy()
+    Local $hDummyEscResults = GUICtrlCreateDummy()
+    Local $aAccel[7][2] = [ _
+        ["^k", $dummy_copy], _
+        ["!b", $dummy_browser], _
+        ["!g", $dummy_channel], _
+        ["{ENTER}", $hDummyEnterResults], _
+        ["{HOME}", $hDummyHomeResults], _
+        ["{END}", $hDummyEndResults], _
+        ["{ESC}", $hDummyEscResults] _
+    ]
     GUISetAccelerators($aAccel, $hResultsGui)
 
     GUISetState(@SW_SHOW, $hResultsGui)
@@ -500,12 +515,18 @@ Func _ShowSearchResultsWindow($sKeyword)
                 If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
                     _ShowContextMenu()
                 EndIf
+            Case $hDummyHomeResults
+                _GUICtrlListBox_SetCurSel($lst_results, 0)
+            Case $hDummyEndResults
+                _GUICtrlListBox_SetCurSel($lst_results, _GUICtrlListBox_GetCount($lst_results) - 1)
+                _CheckAutoLoadMore()
+            Case $hDummyEscResults
+                GUIDelete($hResultsGui)
+                $hResultsGui = 0
+                GUISetState(@SW_SHOW, $hCurrentSubGui)
+                Return
             Case $lst_results
-                ; Automatic "Load More" logic: check if selected index is near the end
-                Local $iCur = _GUICtrlListBox_GetCurSel($lst_results)
-                If $iCur <> -1 And $iCur >= $iTotalLoaded - 5 And Not $bIsSearching And Not $bEndReached Then
-                    _SearchYouTube($sCurrentKeyword, True)
-                EndIf
+                _CheckAutoLoadMore()
             Case $dummy_copy
                 _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))
             Case $dummy_browser
@@ -543,7 +564,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
     Local $bData = Binary("")
     While ProcessExists($iPID)
         $bData &= StdoutRead($iPID, False, True)
-        Sleep(10)
+        Sleep(1)
     WEnd
     $bData &= StdoutRead($iPID, False, True)
 
@@ -623,6 +644,16 @@ Func _SearchYouTube($sKeyword, $bAppend)
     EndIf
 
     $bIsSearching = False
+EndFunc
+
+Func _CheckAutoLoadMore()
+    If $hResultsGui = 0 Or $bIsSearching Or $bEndReached Then Return
+    Local $iCur = _GUICtrlListBox_GetCurSel($lst_results)
+    Local $iCount = _GUICtrlListBox_GetCount($lst_results)
+    ; Trigger earlier (10 items remaining) for smoother experience
+    If $iCur <> -1 And $iCur >= $iCount - 10 Then
+        _SearchYouTube($sCurrentKeyword, True)
+    EndIf
 EndFunc
 
 Func _ShowContextMenu($bIsFavContext = False)
@@ -731,7 +762,7 @@ Func _Action_ShowDescription($iIndex)
     
     While ProcessExists($iPID)
         $bData &= StdoutRead($iPID, False, True) ; True = Binary Mode
-        Sleep(10)
+        Sleep(1)
     WEnd
     $bData &= StdoutRead($iPID, False, True)
     
@@ -764,7 +795,7 @@ Func _Action_GoChannel($iIndex)
     Local $sChannelUrl = ""
     While ProcessExists($pid_channel)
         $sChannelUrl &= StdoutRead($pid_channel)
-        Sleep(10)
+        Sleep(1)
     WEnd
     $sChannelUrl &= StdoutRead($pid_channel)
     GUIDelete($hLoading)
@@ -804,13 +835,14 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
         EndIf
 
         Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
-        ; Added --no-playlist, --no-check-certificate, -4 and better error capturing
-        Local $pid_url = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate -4 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+        ; Highly optimized yt-dlp call for minimum delay: added --no-mtime, --socket-timeout, --geo-bypass
+        Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 ' & $sID & '"'
+        Local $pid_url = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
         Local $sUrl = "", $sErr = ""
         While ProcessExists($pid_url)
             $sUrl &= StdoutRead($pid_url)
             $sErr &= StderrRead($pid_url)
-            Sleep(10)
+            Sleep(1)
         WEnd
         $sUrl &= StdoutRead($pid_url)
         $sErr &= StderrRead($pid_url)
@@ -858,8 +890,9 @@ EndFunc
 Func _ShowDownloadDialog($sID, $sTitle)
     Local $sUrl = "https://www.youtube.com/watch?v=" & $sID
     Local $hDLGui = GUICreate("Download Options", 300, 150, -1, -1, -1, -1)
-    GUICtrlCreateLabel("Select Format:", 10, 20, 280, 20)
-    Local $cboFormat = GUICtrlCreateCombo("Video MP4 (Best)", 10, 40, 280, 20)
+    GUICtrlCreateLabel("Select Format (Tab to navigate):", 10, 20, 280, 20)
+    Local $cboFormat = GUICtrlCreateCombo("Video MP4 (Best)", 10, 40, 280, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetTip(-1, "Use Arrow keys to select download format")
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
     Local $btn_DownloadNow = GUICtrlCreateButton("Download", 100, 80, 100, 30)
 
@@ -895,7 +928,7 @@ Func _ShowDownloadDialog($sID, $sTitle)
                     GUIDelete($hDLGui)
                     Return
                 EndIf
-                Sleep(10)
+                Sleep(1)
             WEnd
             MsgBox(64, "Info", "Download Complete!")
             ExitLoop
@@ -916,7 +949,8 @@ Func playmedia($url)
         GUISetState(@SW_SHOW, $hLoading)
     EndIf
 
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
+    Local $pid = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
         $dlink &= StdoutRead($pid)
@@ -951,7 +985,8 @@ Func playaudio($url)
         GUISetState(@SW_SHOW, $hLoading)
     EndIf
 
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
+    Local $pid = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
         $dlink &= StdoutRead($pid)
@@ -1045,8 +1080,9 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $hDummyD = GUICtrlCreateDummy()
         $hDummyF = GUICtrlCreateDummy()
         $hDummyCtrlShiftE = GUICtrlCreateDummy()
+        $hDummyEsc = GUICtrlCreateDummy()
 
-        Local $aAccelPlay[31][2] = [ _
+        Local $aAccelPlay[32][2] = [ _
             ["{SPACE}", $hDummySpace], _
             ["n", $hDummyN], _
             ["r", $hDummyR], _
@@ -1077,7 +1113,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             ["s", $hDummyS], _
             ["d", $hDummyD], _
             ["f", $hDummyF], _
-            ["^+e", $hDummyCtrlShiftE] _
+            ["^+e", $hDummyCtrlShiftE], _
+            ["{ESC}", $hDummyEsc] _
         ]
         GUISetAccelerators($aAccelPlay, $hPlayGui)
     Else
@@ -1180,8 +1217,14 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 ExitLoop
 
             Case $hDummyEnd
-                $sAction = "STOP"
-                ExitLoop
+                Local $fDuration = $oWMP.currentMedia.duration
+                If $fDuration > 0 Then
+                    $oWMP.controls.currentPosition = $fDuration - 0.1
+                    _ReportStatus("Seek to End")
+                Else
+                    $sAction = "STOP"
+                    ExitLoop
+                EndIf
 
             Case $hDummyCtrlW
                 SoundPlay(@ScriptDir & "\sounds\exit.wav", 1)
@@ -1230,6 +1273,10 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Case $hDummyRight
                 $oWMP.controls.currentPosition = $oWMP.controls.currentPosition + $g_iSeekStep
 
+            Case $hDummyEsc
+                $sAction = "CLOSE"
+                ExitLoop
+
             Case $hDummyCtrlLeft
                 ; Removed as requested
             Case $hDummyCtrlRight
@@ -1244,13 +1291,18 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 _ReportStatus("Total Duration: " & $sTotal)
 
             Case $hDummyHome
-                $oWMP.controls.stop()
-                $oWMP.controls.play()
+                $oWMP.controls.currentPosition = 0
                 _ReportStatus("Restart Track")
 
             Case $hDummyEnd
-                $sAction = "STOP"
-                ExitLoop
+                Local $fDuration = $oWMP.currentMedia.duration
+                If $fDuration > 0 Then
+                    $oWMP.controls.currentPosition = $fDuration - 0.1
+                    _ReportStatus("Seek to End")
+                Else
+                    $sAction = "STOP"
+                    ExitLoop
+                EndIf
         EndSwitch
 
         ; Check if loaded to close loading dialog
@@ -1443,11 +1495,11 @@ Func _GetYoutubeID($url)
 EndFunc
 
 Func _GetYoutubeTitle($url)
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --encoding utf-8 --get-title "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --encoding utf-8 --get-title --no-playlist --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $bData = Binary("")
     While ProcessExists($pid)
         $bData &= StdoutRead($pid, False, True)
-        Sleep(10)
+        Sleep(1)
     WEnd
     $bData &= StdoutRead($pid, False, True)
     Return StringStripWS(BinaryToString($bData, 4), 3)
@@ -1571,7 +1623,18 @@ Func _ShowFavorites()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
     Local $hDummyEnterFav = GUICtrlCreateDummy()
-    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterFav]]
+    Local $hDummyHomeFav = GUICtrlCreateDummy()
+    Local $hDummyEndFav = GUICtrlCreateDummy()
+    Local $hDummyEscFav = GUICtrlCreateDummy()
+    Local $aAccel[7][2] = [ _
+        ["^k", $dummy_copy], _
+        ["!b", $dummy_browser], _
+        ["!g", $dummy_channel], _
+        ["{ENTER}", $hDummyEnterFav], _
+        ["{HOME}", $hDummyHomeFav], _
+        ["{END}", $hDummyEndFav], _
+        ["{ESC}", $hDummyEscFav] _
+    ]
     GUISetAccelerators($aAccel, $hFavoritesGui)
 
     GUISetState(@SW_SHOW, $hFavoritesGui)
@@ -1602,6 +1665,15 @@ Func _ShowFavorites()
                         ControlFocus($hFavoritesGui, "", $lst_results)
                     EndIf
                 EndIf
+            Case $hDummyHomeFav
+                _GUICtrlListBox_SetCurSel($lst_results, 0)
+            Case $hDummyEndFav
+                _GUICtrlListBox_SetCurSel($lst_results, _GUICtrlListBox_GetCount($lst_results) - 1)
+            Case $hDummyEscFav
+                GUIDelete($hFavoritesGui)
+                $hFavoritesGui = 0
+                GUISetState(@SW_SHOW, $mainform)
+                Return
             Case $btn_clear_fav
                 If MsgBox(36, "Confirm", "Are you sure you want to clear all favorites?") = 6 Then
                     _ClearFavorites()
@@ -1660,7 +1732,18 @@ Func _ShowHistory()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
     Local $hDummyEnterHist = GUICtrlCreateDummy()
-    Local $aAccel[4][2] = [["^k", $dummy_copy], ["!b", $dummy_browser], ["!g", $dummy_channel], ["{ENTER}", $hDummyEnterHist]]
+    Local $hDummyHomeHist = GUICtrlCreateDummy()
+    Local $hDummyEndHist = GUICtrlCreateDummy()
+    Local $hDummyEscHist = GUICtrlCreateDummy()
+    Local $aAccel[7][2] = [ _
+        ["^k", $dummy_copy], _
+        ["!b", $dummy_browser], _
+        ["!g", $dummy_channel], _
+        ["{ENTER}", $hDummyEnterHist], _
+        ["{HOME}", $hDummyHomeHist], _
+        ["{END}", $hDummyEndHist], _
+        ["{ESC}", $hDummyEscHist] _
+    ]
     GUISetAccelerators($aAccel, $hHistoryGui)
 
     GUISetState(@SW_SHOW, $hHistoryGui)
@@ -1690,6 +1773,14 @@ Func _ShowHistory()
                         ControlFocus($hHistoryGui, "", $lst_results)
                     EndIf
                 EndIf
+            Case $hDummyHomeHist
+                _GUICtrlListBox_SetCurSel($lst_results, 0)
+            Case $hDummyEndHist
+                _GUICtrlListBox_SetCurSel($lst_results, _GUICtrlListBox_GetCount($lst_results) - 1)
+            Case $hDummyEscHist
+                GUIDelete($hHistoryGui)
+                GUISetState(@SW_SHOW, $mainform)
+                Return
             Case $btn_clear_all
                 If MsgBox(36, "Confirm", "Are you sure you want to clear all history?") = 6 Then
                     _ClearHistory()
@@ -1802,7 +1893,7 @@ Func _Check_YTDLP_Update()
     Local $sOutput = ""
     While ProcessExists($iPID)
         $sOutput &= StdoutRead($iPID)
-        Sleep(10)
+        Sleep(1)
     WEnd
     $sOutput &= StdoutRead($iPID)
     GUIDelete($hWait)

@@ -25,6 +25,16 @@ changes for version 1.3
   - improved navigation when interacting with screen readers in lists.
 - Fixed a critical error for full-screen systems when watching videos.
 - Conflicting components have been removed.
+- Improved Home/End key responsiveness: In the music player, the Home key now restarts the song immediately. In lists (search, history, favorites), the Home and End keys will help you jump to the top or bottom of the list quickly.
+- Reduce waiting time when transferring songs: I have optimized the yt-dlp commands so that getting the next song URL is faster, helping to shorten the transfer time.
+- Prevent the Escape key from closing applications: I have set the Escape key to be automatically ignored in the main window to prevent accidental closing of applications.
+- Improved Home/End in the player: The Home key restarts the song immediately. The End key will jump to the end of the song to activate automatic song switching (if AutoPlay is enabled), making the experience smoother.
+- Fix Auto Load More error: Now when you press the End key in the search list, the application will jump to the bottom and automatically load new results immediately.
+- Reduce waiting time: The welcome screen (Splash Screen) has been reduced to 3 seconds so you can enter the application faster. Video loading commands have also been optimized to reduce latency when switching tracks.
+- Fetching URL speed: Has been significantly improved by removing unnecessary data and setting more stringent connection timeouts. You'll see videos load faster when you skip tracks or go back.
+- Automatically download results more smoothly: The application will now automatically download more results when you are 10 items away from the end of the list (instead of 5 as before), helping to prevent list scrolling from stalling.
+- Increased overall performance: I've reduced latency in internal data processing loops (from 10ms to 1ms), making the app more responsive and "responsive" to your actions.
+- Improved accessibility: Combo boxes have been redesigned with clear labels ("Select format (Tab to move)") and hints for screen readers, ensuring NVDA/JAWS users can use them easily and accurately.
 
 changes for version 1.2
 - new feature:
