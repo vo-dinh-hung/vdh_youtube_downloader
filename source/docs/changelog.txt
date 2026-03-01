@@ -1,5 +1,6 @@
 changes for version 1.3
 - new feature:
+  - Added a 2-second delay for better accessibility and implemented automatic loading of more results as you scroll down.
   - completely removed the notification as ToolTip.
   - add anti-scan system from windows security.
   - Now in the media player all notifications will be read through NVDA or sapi5 if NVDA fails.
@@ -15,12 +16,15 @@ changes for version 1.3
   - Ctrl + W: Exit Application.
   - S / D / F: Change Speed (Fast / Normal / Slow).
   - (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
+  - Ctrl + Shift + E to toggle Cinema Mode (Fullscreen).
 - new library:
   - nvdaControllerClient64.dll: for computers using 64bit architecture.
   - nvdaControllerClient32.dll: for computers using 32bit architecture.
 - fix bug:
   - Removed annoying sound when using keyboard shortcuts in media player.
   - improved navigation when interacting with screen readers in lists.
+- Fixed a critical error for full-screen systems when watching videos.
+- Conflicting components have been removed.
 
 changes for version 1.2
 - new feature:

@@ -46,6 +46,16 @@ Global $hResultsGui = 0
 Global $hFavoritesGui = 0 
 Global $hHistoryGui = 0
 Global $hSearchHistoryGui = 0
+Global $hPlayGui = 0, $oWMP = 0, $oWMPCtrl = 0
+Global $g_hStatusLabel = 0, $g_lblPlayerInfo = 0, $g_lblAuto = 0, $g_lblRepeat = 0
+Global $g_bCinemaMode = False
+Global $g_iOriginalX, $g_iOriginalY, $g_iOriginalW, $g_iOriginalH
+Global $hDummySpace, $hDummyEnter, $hDummyN, $hDummyUp, $hDummyDown, $hDummyLeft, $hDummyRight
+Global $hDummyCtrlLeft, $hDummyCtrlRight, $hDummyCtrlT, $hDummyCtrlShiftT, $hDummyHome, $hDummyEnd
+Global $hDummy1, $hDummy2, $hDummy3, $hDummy4, $hDummy5, $hDummy6, $hDummy7, $hDummy8, $hDummy9
+Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE
+Global $g_sLastReportedText = "", $g_iLastReportedTime = 0
+Global $g_sCurrentVideoTitle = ""
 
 Global $FAVORITES_FILE = @ScriptDir & "\favorites.dat"
 Global $HISTORY_FILE = @ScriptDir & "\watch_history.dat"
@@ -490,6 +500,12 @@ Func _ShowSearchResultsWindow($sKeyword)
                 If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
                     _ShowContextMenu()
                 EndIf
+            Case $lst_results
+                ; Automatic "Load More" logic: check if selected index is near the end
+                Local $iCur = _GUICtrlListBox_GetCurSel($lst_results)
+                If $iCur <> -1 And $iCur >= $iTotalLoaded - 5 And Not $bIsSearching And Not $bEndReached Then
+                    _SearchYouTube($sCurrentKeyword, True)
+                EndIf
             Case $dummy_copy
                 _Action_CopyLink(_GUICtrlListBox_GetCurSel($lst_results))
             Case $dummy_browser
@@ -506,10 +522,11 @@ Func _SearchYouTube($sKeyword, $bAppend)
     Local $hWaitGui = 0
     If Not $bAppend Then
         $hWaitGui = GUICreate("Searching...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
-        GUICtrlCreateLabel("Searching YouTube for: " & StringLeft($sKeyword, 20) & "...", 10, 25, 230, 20, $SS_CENTER)
+        GUICtrlCreateLabel("Searching: " & StringLeft($sKeyword, 20) & "...", 10, 25, 230, 20, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hWaitGui)
         GUISetState(@SW_SHOW, $hWaitGui)
         GUISetCursor(15, 1)
+        Sleep(2000) ; Wait 2 seconds for visibility/accessibility
     EndIf
 
     Local $iStart = $bAppend ? $iTotalLoaded + 1 : 1
@@ -773,12 +790,18 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
 
         _AddHistory($sID, $sTitle) ; Save to history when playing
 
-        ; Show Loading Dialog
-        Local $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
-        GUICtrlCreateLabel("Loading stream URL for:" & @CRLF & StringLeft($sTitle, 35) & "...", 10, 15, 230, 40, $SS_CENTER)
-        GUISetBkColor(0xFFFFFF, $hLoading)
-        GUISetState(@SW_SHOW, $hLoading)
-        WinActivate($hLoading)
+        ; Update existing player info or show status if GUI exists
+        If IsHWnd($hPlayGui) Then
+            GUICtrlSetData($g_lblPlayerInfo, "Loading: " & $sTitle)
+            GUICtrlSetData($g_hStatusLabel, "Fetching URL...")
+        Else
+            ; Show a small loading popup ONLY if player isn't open yet
+            $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
+            GUICtrlCreateLabel("Playing:" & @CRLF & StringLeft($sTitle, 35) & "...", 10, 15, 230, 40, $SS_CENTER)
+            GUISetBkColor(0xFFFFFF, $hLoading)
+            GUISetState(@SW_SHOW, $hLoading)
+            WinActivate($hLoading)
+        EndIf
 
         Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
         ; Added --no-playlist, --no-check-certificate, -4 and better error capturing
@@ -823,6 +846,13 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
             ExitLoop
         EndIf
     WEnd
+    
+    If IsHWnd($hPlayGui) Then
+        $oWMP.controls.stop()
+        GUIDelete($hPlayGui)
+        $hPlayGui = 0
+        $oWMP = 0
+    EndIf
 EndFunc
 
 Func _ShowDownloadDialog($sID, $sTitle)
@@ -874,11 +904,17 @@ Func _ShowDownloadDialog($sID, $sTitle)
 EndFunc
 
 Func playmedia($url)
-    ; Show Loading Dialog (Matching Searching style)
-    Local $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-    GUICtrlCreateLabel("Loading YouTube Video, please wait...", 10, 25, 230, 30, $SS_CENTER)
-    GUISetBkColor(0xFFFFFF, $hLoading)
-    GUISetState(@SW_SHOW, $hLoading)
+    ; Update existing player info or show status if GUI exists
+    Local $hLoading = 0
+    If IsHWnd($hPlayGui) Then
+        GUICtrlSetData($g_lblPlayerInfo, "Loading video...")
+        GUICtrlSetData($g_hStatusLabel, "Fetching stream URL...")
+    Else
+        $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+        GUICtrlCreateLabel("Loading YouTube Video, please wait...", 10, 25, 230, 30, $SS_CENTER)
+        GUISetBkColor(0xFFFFFF, $hLoading)
+        GUISetState(@SW_SHOW, $hLoading)
+    EndIf
 
     Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
@@ -903,11 +939,17 @@ Func playmedia($url)
 EndFunc
 
 Func playaudio($url)
-    ; Show Loading Dialog (Matching Searching style)
-    Local $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-    GUICtrlCreateLabel("Loading YouTube Audio, please wait...", 10, 25, 230, 30, $SS_CENTER)
-    GUISetBkColor(0xFFFFFF, $hLoading)
-    GUISetState(@SW_SHOW, $hLoading)
+    ; Update existing player info or show status if GUI exists
+    Local $hLoading = 0
+    If IsHWnd($hPlayGui) Then
+        GUICtrlSetData($g_lblPlayerInfo, "Loading audio...")
+        GUICtrlSetData($g_hStatusLabel, "Fetching stream URL...")
+    Else
+        $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+        GUICtrlCreateLabel("Loading YouTube Audio, please wait...", 10, 25, 230, 30, $SS_CENTER)
+        GUISetBkColor(0xFFFFFF, $hLoading)
+        GUISetState(@SW_SHOW, $hLoading)
+    EndIf
 
     Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
@@ -938,112 +980,138 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $iHeight = 150
     EndIf
 
-    Local $hPlayGui = GUICreate($sTitle, $iWidth, $iHeight + 40, -1, -1, BitOR($WS_CAPTION, $WS_SYSMENU, $WS_POPUP), $WS_EX_TOPMOST)
-    GUISetBkColor(0x000000)
+    If Not IsHWnd($hPlayGui) Then
+        $g_sCurrentVideoTitle = $sTitle
+        $hPlayGui = GUICreate($sTitle, $iWidth, $iHeight + 40, -1, -1, BitOR($WS_CAPTION, $WS_SYSMENU, $WS_POPUP, $WS_SIZEBOX), $WS_EX_TOPMOST)
+        GUISetBkColor(0x000000)
 
-    Local $oWMP = ObjCreate("WMPlayer.OCX.7")
-    If Not IsObj($oWMP) Then
-        If $hLoading <> 0 Then GUIDelete($hLoading)
-        MsgBox(16, "Error", "Windows Media Player ActiveX control could not be created.")
-        GUIDelete($hPlayGui)
-        Return ""
+        $oWMP = ObjCreate("WMPlayer.OCX.7")
+        If Not IsObj($oWMP) Then
+            if $hLoading <> 0 Then GUIDelete($hLoading)
+            MsgBox(16, "Error", "Windows Media Player ActiveX control could not be created.")
+            GUIDelete($hPlayGui)
+            $hPlayGui = 0
+            Return ""
+        EndIf
+
+        $oWMPCtrl = GUICtrlCreateObj($oWMP, 0, 0, $iWidth, $iHeight)
+        
+        $g_hStatusLabel = GUICtrlCreateLabel("", 10, $iHeight + 5, $iWidth - 100, 20)
+        GUICtrlSetFont(-1, 10, 800)
+        GUICtrlSetColor(-1, 0xFFFF00)
+
+        $g_lblPlayerInfo = GUICtrlCreateLabel("Playing: " & $sTitle, 10, $iHeight + 22, $iWidth - 100, 18)
+        GUICtrlSetColor(-1, 0x00FF00)
+        
+        $g_lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 22, 70, 18)
+        GUICtrlSetColor(-1, 0xFFFF00)
+        
+        $g_lblRepeat = GUICtrlCreateLabel("Repeat: OFF", $iWidth - 80, $iHeight + 5, 70, 18)
+        GUICtrlSetColor(-1, 0xFFFF00)
+        
+        GUISetState(@SW_SHOW, $hPlayGui)
+
+        ; Initialize Hidden Controls and Accelerators ONLY ONCE
+        $hDummySpace = GUICtrlCreateDummy()
+        $hDummyEnter = GUICtrlCreateDummy()
+        $hDummyN = GUICtrlCreateDummy()
+        $hDummyUp = GUICtrlCreateDummy()
+        $hDummyDown = GUICtrlCreateDummy()
+        $hDummyLeft = GUICtrlCreateDummy()
+        $hDummyRight = GUICtrlCreateDummy()
+        $hDummyCtrlLeft = GUICtrlCreateDummy()
+        $hDummyCtrlRight = GUICtrlCreateDummy()
+        $hDummyCtrlT = GUICtrlCreateDummy()
+        $hDummyCtrlShiftT = GUICtrlCreateDummy()
+        $hDummyHome = GUICtrlCreateDummy()
+        $hDummyEnd = GUICtrlCreateDummy()
+        $hDummy1 = GUICtrlCreateDummy()
+        $hDummy2 = GUICtrlCreateDummy()
+        $hDummy3 = GUICtrlCreateDummy()
+        $hDummy4 = GUICtrlCreateDummy()
+        $hDummy5 = GUICtrlCreateDummy()
+        $hDummy6 = GUICtrlCreateDummy()
+        $hDummy7 = GUICtrlCreateDummy()
+        $hDummy8 = GUICtrlCreateDummy()
+        $hDummy9 = GUICtrlCreateDummy()
+
+        $hDummyR = GUICtrlCreateDummy()
+        $hDummyShiftN = GUICtrlCreateDummy()
+        $hDummyShiftB = GUICtrlCreateDummy()
+        $hDummyCtrlW = GUICtrlCreateDummy()
+        $hDummyMinus = GUICtrlCreateDummy()
+        $hDummyEqual = GUICtrlCreateDummy()
+        $hDummyS = GUICtrlCreateDummy()
+        $hDummyD = GUICtrlCreateDummy()
+        $hDummyF = GUICtrlCreateDummy()
+        $hDummyCtrlShiftE = GUICtrlCreateDummy()
+
+        Local $aAccelPlay[31][2] = [ _
+            ["{SPACE}", $hDummySpace], _
+            ["n", $hDummyN], _
+            ["r", $hDummyR], _
+            ["+n", $hDummyShiftN], _
+            ["+b", $hDummyShiftB], _
+            ["{UP}", $hDummyUp], _
+            ["{DOWN}", $hDummyDown], _
+            ["{LEFT}", $hDummyLeft], _
+            ["{RIGHT}", $hDummyRight], _
+            ["^{LEFT}", $hDummyCtrlLeft], _
+            ["^{RIGHT}", $hDummyCtrlRight], _
+            ["^t", $hDummyCtrlT], _
+            ["^+t", $hDummyCtrlShiftT], _
+            ["{HOME}", $hDummyHome], _
+            ["{END}", $hDummyEnd], _
+            ["1", $hDummy1], _
+            ["2", $hDummy2], _
+            ["3", $hDummy3], _
+            ["4", $hDummy4], _
+            ["5", $hDummy5], _
+            ["6", $hDummy6], _
+            ["7", $hDummy7], _
+            ["8", $hDummy8], _
+            ["9", $hDummy9], _
+            ["^w", $hDummyCtrlW], _
+            ["-", $hDummyMinus], _
+            ["=", $hDummyEqual], _
+            ["s", $hDummyS], _
+            ["d", $hDummyD], _
+            ["f", $hDummyF], _
+            ["^+e", $hDummyCtrlShiftE] _
+        ]
+        GUISetAccelerators($aAccelPlay, $hPlayGui)
+    Else
+        ; Update Title and metadata for persistent GUI
+        $g_sCurrentVideoTitle = $sTitle
+        WinSetTitle($hPlayGui, "", $sTitle)
+        GUICtrlSetData($g_lblPlayerInfo, "Playing: " & $sTitle)
     EndIf
 
-    GUICtrlCreateObj($oWMP, 0, 0, $iWidth, $iHeight)
+    ; Flush message queue to ignore accidental seeks/commands from previous track
+    While GUIGetMsg() <> 0
+    WEnd
 
     $oWMP.url = $sUrl
     $oWMP.settings.volume = 100
     $oWMP.uiMode = "none"
     
-    Global $g_hStatusLabel = GUICtrlCreateLabel("", 10, $iHeight + 5, $iWidth - 100, 20)
-    GUICtrlSetFont(-1, 10, 800)
-    GUICtrlSetColor(-1, 0xFFFF00) ; Yellow for visibility
+    If (Not $allowAutoPlayToggle) Or (Not $g_bAutoPlay) Then GUICtrlSetState($g_lblAuto, $GUI_HIDE)
+    If $allowAutoPlayToggle And $g_bAutoPlay Then 
+        GUICtrlSetState($g_lblAuto, $GUI_SHOW)
+        GUICtrlSetData($g_lblAuto, "Auto: ON")
+    EndIf
+    If $allowAutoPlayToggle And Not $g_bAutoPlay Then 
+        GUICtrlSetState($g_lblAuto, $GUI_SHOW)
+        GUICtrlSetData($g_lblAuto, "Auto: OFF")
+    EndIf
 
-    Local $lblInfo = GUICtrlCreateLabel("Playing: " & $sTitle, 10, $iHeight + 22, $iWidth - 100, 18)
-    GUICtrlSetColor(-1, 0x00FF00)
-    Local $lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 22, 70, 18)
-    GUICtrlSetColor(-1, 0xFFFF00)
-    If (Not $allowAutoPlayToggle) Or (Not $g_bAutoPlay) Then GUICtrlSetState($lblAuto, $GUI_HIDE)
-    If $allowAutoPlayToggle And $g_bAutoPlay Then GUICtrlSetData($lblAuto, "Auto: ON")
-    If $allowAutoPlayToggle And Not $g_bAutoPlay Then GUICtrlSetData($lblAuto, "Auto: OFF")
-
-    Local $lblRepeat = GUICtrlCreateLabel("Repeat: OFF", $iWidth - 80, $iHeight + 5, 70, 18)
-    GUICtrlSetColor(-1, 0xFFFF00)
-    If Not $g_bRepeat Then GUICtrlSetData($lblRepeat, "Repeat: OFF")
-    If $g_bRepeat Then GUICtrlSetData($lblRepeat, "Repeat: ON")
-
-    GUISetState(@SW_SHOW, $hPlayGui)
-
-    Local $hDummySpace = GUICtrlCreateDummy()
-    Local $hDummyEnter = GUICtrlCreateDummy()
-    Local $hDummyN = GUICtrlCreateDummy()
-    Local $hDummyUp = GUICtrlCreateDummy()
-    Local $hDummyDown = GUICtrlCreateDummy()
-    Local $hDummyLeft = GUICtrlCreateDummy()
-    Local $hDummyRight = GUICtrlCreateDummy()
-    Local $hDummyCtrlLeft = GUICtrlCreateDummy()
-    Local $hDummyCtrlRight = GUICtrlCreateDummy()
-    Local $hDummyCtrlT = GUICtrlCreateDummy()
-    Local $hDummyCtrlShiftT = GUICtrlCreateDummy()
-    Local $hDummyHome = GUICtrlCreateDummy()
-    Local $hDummyEnd = GUICtrlCreateDummy()
-    Local $hDummy1 = GUICtrlCreateDummy()
-    Local $hDummy2 = GUICtrlCreateDummy()
-    Local $hDummy3 = GUICtrlCreateDummy()
-    Local $hDummy4 = GUICtrlCreateDummy()
-    Local $hDummy5 = GUICtrlCreateDummy()
-    Local $hDummy6 = GUICtrlCreateDummy()
-    Local $hDummy7 = GUICtrlCreateDummy()
-    Local $hDummy8 = GUICtrlCreateDummy()
-    Local $hDummy9 = GUICtrlCreateDummy()
-
-    Local $hDummyR = GUICtrlCreateDummy()
-    Local $hDummyShiftN = GUICtrlCreateDummy()
-    Local $hDummyShiftB = GUICtrlCreateDummy()
-    Local $hDummyCtrlW = GUICtrlCreateDummy()
-    Local $hDummyMinus = GUICtrlCreateDummy()
-    Local $hDummyEqual = GUICtrlCreateDummy()
-    Local $hDummyS = GUICtrlCreateDummy()
-    Local $hDummyD = GUICtrlCreateDummy()
-    Local $hDummyF = GUICtrlCreateDummy()
-
-    Local $aAccelPlay[31][2] = [ _
-        ["{SPACE}", $hDummySpace], _
-        ["{ENTER}", $hDummyEnter], _
-        ["n", $hDummyN], _
-        ["r", $hDummyR], _
-        ["+n", $hDummyShiftN], _
-        ["+b", $hDummyShiftB], _
-        ["{UP}", $hDummyUp], _
-        ["{DOWN}", $hDummyDown], _
-        ["{LEFT}", $hDummyLeft], _
-        ["{RIGHT}", $hDummyRight], _
-        ["^{LEFT}", $hDummyCtrlLeft], _
-        ["^{RIGHT}", $hDummyCtrlRight], _
-        ["^t", $hDummyCtrlT], _
-        ["^+t", $hDummyCtrlShiftT], _
-        ["{HOME}", $hDummyHome], _
-        ["{END}", $hDummyEnd], _
-        ["1", $hDummy1], _
-        ["2", $hDummy2], _
-        ["3", $hDummy3], _
-        ["4", $hDummy4], _
-        ["5", $hDummy5], _
-        ["6", $hDummy6], _
-        ["7", $hDummy7], _
-        ["8", $hDummy8], _
-        ["9", $hDummy9], _
-        ["^w", $hDummyCtrlW], _
-        ["-", $hDummyMinus], _
-        ["=", $hDummyEqual], _
-        ["s", $hDummyS], _
-        ["d", $hDummyD], _
-        ["f", $hDummyF] _
-    ]
-    GUISetAccelerators($aAccelPlay, $hPlayGui)
+    If Not $g_bRepeat Then GUICtrlSetData($g_lblRepeat, "Repeat: OFF")
+    If $g_bRepeat Then GUICtrlSetData($g_lblRepeat, "Repeat: ON")
 
     Local $sAction = ""
     Local $bLoaded = False
+    Local $iLoadStartTime = TimerInit()
+
     While 1
         Local $nMsg = GUIGetMsg()
         Switch $nMsg
@@ -1069,22 +1137,38 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                     _ReportStatus("Playing")
                 EndIf
 
-            Case $hDummyEnter
+            Case $hDummyCtrlShiftE
                 If Not $bAudioOnly Then
-                    $oWMP.fullScreen = Not $oWMP.fullScreen
-                    _ReportStatus($oWMP.fullScreen ? "Full Screen Mode Enable" : "Full Screen Mode Disable")
+                    $g_bCinemaMode = Not $g_bCinemaMode
+                    If $g_bCinemaMode Then
+                        Local $aPos = WinGetPos($hPlayGui)
+                        $g_iOriginalX = $aPos[0]
+                        $g_iOriginalY = $aPos[1]
+                        $g_iOriginalW = $aPos[2]
+                        $g_iOriginalH = $aPos[3]
+                        
+                        GUISetStyle(BitOR($WS_POPUP, $WS_VISIBLE), -1, $hPlayGui)
+                        WinMove($hPlayGui, "", 0, 0, @DesktopWidth, @DesktopHeight)
+                        GUICtrlSetPos($oWMPCtrl, 0, 0, @DesktopWidth, @DesktopHeight)
+                        _ReportStatus("Cinema Mode Enabled")
+                    Else
+                        GUISetStyle(BitOR($WS_CAPTION, $WS_SYSMENU, $WS_POPUP, $WS_SIZEBOX, $WS_VISIBLE), -1, $hPlayGui)
+                        WinMove($hPlayGui, "", $g_iOriginalX, $g_iOriginalY, $g_iOriginalW, $g_iOriginalH)
+                        GUICtrlSetPos($oWMPCtrl, 0, 0, $iWidth, $iHeight)
+                        _ReportStatus("Cinema Mode Disabled")
+                    EndIf
                 EndIf
 
             Case $hDummyN
                 If $allowAutoPlayToggle Then
                     $g_bAutoPlay = Not $g_bAutoPlay
-                    GUICtrlSetData($lblAuto, $g_bAutoPlay ? "Auto: ON" : "Auto: OFF")
+                    GUICtrlSetData($g_lblAuto, $g_bAutoPlay ? "Auto: ON" : "Auto: OFF")
                     _ReportStatus($g_bAutoPlay ? "Auto Play Next Track ON" : "Auto Play Next Track OFF")
                 EndIf
 
             Case $hDummyR
                 $g_bRepeat = Not $g_bRepeat
-                GUICtrlSetData($lblRepeat, $g_bRepeat ? "Repeat: ON" : "Repeat: OFF")
+                GUICtrlSetData($g_lblRepeat, $g_bRepeat ? "Repeat: ON" : "Repeat: OFF")
                 _ReportStatus($g_bRepeat ? "Repeat ON" : "Repeat OFF")
 
             Case $hDummyShiftN
@@ -1106,11 +1190,11 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
 
             Case $hDummyMinus
                 $g_iSeekStep = ($g_iSeekStep > 1) ? $g_iSeekStep - 1 : 1
-                _ReportStatus("Seek Step: " & $g_iSeekStep & "s")
+                _ReportStatus("Seek Step: " & $g_iSeekStep & "second")
 
             Case $hDummyEqual
                 $g_iSeekStep += 1
-                _ReportStatus("Seek Step: " & $g_iSeekStep & "s")
+                _ReportStatus("Seek Step: " & $g_iSeekStep & "second")
 
             Case $hDummyUp
                 Local $iVol = $oWMP.settings.volume + 5
@@ -1147,12 +1231,9 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 $oWMP.controls.currentPosition = $oWMP.controls.currentPosition + $g_iSeekStep
 
             Case $hDummyCtrlLeft
-                $sAction = "BACK"
-                ExitLoop
-
+                ; Removed as requested
             Case $hDummyCtrlRight
-                $sAction = "NEXT"
-                ExitLoop
+                ; Removed as requested
 
             Case $hDummyCtrlT
                 Local $sElapsed = $oWMP.controls.currentPositionString
@@ -1173,7 +1254,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         EndSwitch
 
         ; Check if loaded to close loading dialog
-        If Not $bLoaded And ($oWMP.playState = 3 Or $oWMP.playState = 2) Then ; Playing or Paused
+        Local $iCurState = $oWMP.playState
+        If Not $bLoaded And ($iCurState = 3 Or $iCurState = 2 Or $iCurState = 6 Or TimerDiff($iLoadStartTime) > 30000) Then ; Playing, Paused, Buffering, or 30s timeout
             If $hLoading <> 0 Then
                 GUIDelete($hLoading)
                 $hLoading = 0
@@ -1196,9 +1278,6 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
     WEnd
 
     If $hLoading <> 0 Then GUIDelete($hLoading)
-    $oWMP.controls.stop()
-    $oWMP = 0
-    GUIDelete($hPlayGui)
     Return $sAction
 EndFunc
 
@@ -1207,11 +1286,22 @@ Func online_play($url)
 EndFunc
 
 Func _ReportStatus($sText)
+    If $sText == "" Then Return
+    
+    ; Suppress duplicates within 1s to be safe
+    If StringLower($sText) = StringLower($g_sLastReportedText) And TimerDiff($g_iLastReportedTime) < 1000 Then Return
+    $g_sLastReportedText = $sText
+    $g_iLastReportedTime = TimerInit()
+
     If IsDeclared("g_hStatusLabel") Then
         GUICtrlSetData($g_hStatusLabel, $sText)
         AdlibRegister("_ClearToolTip", 2000)
     EndIf
-    _NVDA_Speak($sText)
+    
+    ; Instead of manual speech, update window title which screen readers announce naturally
+    If IsHWnd($hPlayGui) Then
+        WinSetTitle($hPlayGui, "", $sText & " - " & $g_sCurrentVideoTitle)
+    EndIf
 EndFunc
 
 Func _NVDA_Speak($sText)
@@ -1247,6 +1337,12 @@ Func _ClearToolTip()
     If IsDeclared("g_hStatusLabel") Then
         GUICtrlSetData($g_hStatusLabel, "")
     EndIf
+    
+    ; Restore original title when clearing status
+    If IsHWnd($hPlayGui) Then
+        WinSetTitle($hPlayGui, "", $g_sCurrentVideoTitle)
+    EndIf
+    
     AdlibUnRegister("_ClearToolTip")
 EndFunc
 
