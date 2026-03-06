@@ -1,15 +1,3 @@
-#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
-#AutoIt3Wrapper_Res_Comment=nothing
-#AutoIt3Wrapper_Res_Description=This software allows you to search YouTube, download videos, or even play videos if you want. I created this software to help you conveniently watch YouTube videos without worrying about where to listen to them.
-#AutoIt3Wrapper_Res_Fileversion=1.2
-#AutoIt3Wrapper_Res_ProductName=Vdh_youtube_downloader+
-#AutoIt3Wrapper_Res_ProductVersion=1.2
-#AutoIt3Wrapper_Res_CompanyName=vdh productions
-#AutoIt3Wrapper_Res_LegalCopyright=copyright 2026 by vdh productions
-#AutoIt3Wrapper_Res_LegalTradeMarks=nothing
-#AutoIt3Wrapper_Res_Language=1033
-#AutoIt3Wrapper_Res_requestedExecutionLevel=None
-#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 #include <GUIConstants.au3>
 #include <ColorConstants.au3>
 #include <GuiListBox.au3>
@@ -44,8 +32,8 @@ Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
 Global $linkedit, $play_btn, $online_play_btn
 Global $inp_search, $btn_search_go, $lst_results, $btn_search_hist
 Global $hCurrentSubGui = 0
-Global $hResultsGui = 0 
-Global $hFavoritesGui = 0 
+Global $hResultsGui = 0
+Global $hFavoritesGui = 0
 Global $hHistoryGui = 0
 Global $hSearchHistoryGui = 0
 Global $hPlayGui = 0, $oWMP = 0, $oWMPCtrl = 0
@@ -79,14 +67,14 @@ GUISetBkColor($COLOR_BLUE)
 GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
 SoundPlay("sounds/start.wav")
-Sleep(3000) 
+Sleep(3000)
 GUIDelete($lding)
 
 $mainform = GUICreate("VDH_YouTube_Downloader version" & $version, 300, 250)
 GUISetBkColor($COLOR_BLUE)
 GUISetFont(9, 400, 0, "Segoe UI")
 
-GUICtrlCreateLabel("Press the Alt key to go the help menu, then press tab to quick access.", 10, 20, 280, 30, $SS_CENTER)
+$label = GUICtrlCreateLabel("Press the Alt key to go to the help menu, then press tab to quick access.", 10, 20, 280, 30, BitOR($SS_LEFT, $WS_TABSTOP))
 GUICtrlSetFont(-1, 14, 800)
 GUICtrlSetColor(-1, 0xFFFFFF)
 
@@ -106,7 +94,7 @@ Global $menu_exit = GUICtrlCreateMenuItem("Exit...", $menu)
 Global $menuChangelog = GuiCtrlCreateMenuItem("view changelog...", $menu)
 
 GUISetState(@SW_SHOW, $mainform)
-
+ControlFocus($mainform, "", $label)
 Local $hDummyUpdateApp = GUICtrlCreateDummy()
 Local $hDummyUpdateYTDLP = GUICtrlCreateDummy()
 Local $hDummyReadme = GUICtrlCreateDummy()
@@ -370,23 +358,23 @@ EndFunc
 
 Func _AddSearchHistory($sKeyword)
     If $sKeyword = "" Then Return
-    
+
     Local $sContent = ""
     If FileExists($SEARCH_HISTORY_FILE) Then
         $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
     EndIf
-    
+
     Local $aLines = StringSplit(StringStripCR($sContent), @LF)
     Local $sNewContent = ""
-    
+
     For $i = 1 To $aLines[0]
         If $aLines[$i] <> "" And $aLines[$i] <> $sKeyword Then
             $sNewContent &= $aLines[$i] & @CRLF
         EndIf
     Next
-    
+
     $sNewContent &= $sKeyword & @CRLF
-    
+
     Local $hFile = FileOpen($SEARCH_HISTORY_FILE, 2 + 256)
     FileWrite($hFile, $sNewContent)
     FileClose($hFile)
@@ -397,9 +385,9 @@ Func _ShowSearchHistoryWindow()
 
     $hSearchHistoryGui = GUICreate("Search History", 350, 450)
     GUISetBkColor($COLOR_BLUE)
-    
+
     Local $lst_hist = GUICtrlCreateList("", 10, 10, 330, 350, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    
+
     Local $btn_remove = GUICtrlCreateButton("Delete From History", 10, 370, 160, 30)
     Local $btn_clear = GUICtrlCreateButton("Clear All History", 180, 370, 160, 30)
     Local $btn_back = GUICtrlCreateButton("Go Back", 10, 410, 330, 30)
@@ -416,7 +404,7 @@ Func _ShowSearchHistoryWindow()
 
     While 1
         Local $nMsg = GUIGetMsg()
-        
+
         Switch $nMsg
             Case $GUI_EVENT_CLOSE, $btn_back
                 GUIDelete($hSearchHistoryGui)
@@ -442,7 +430,7 @@ Func _ShowSearchHistoryWindow()
                     _RemoveSearchHistoryItem($sTxt)
                     _GUICtrlListBox_DeleteString($lst_hist, $iIndex)
                 EndIf
-                
+
             Case $btn_clear
                 If MsgBox(36, "Confirm", "Are you sure you want to delete all search history?") = 6 Then
                     FileDelete($SEARCH_HISTORY_FILE)
@@ -455,10 +443,10 @@ EndFunc
 Func _LoadSearchHistoryList($hListCtrl)
     GUICtrlSetData($hListCtrl, "")
     If Not FileExists($SEARCH_HISTORY_FILE) Then Return
-    
+
     Local $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
     Local $aLines = StringSplit(StringStripCR($sContent), @LF)
-    
+
     For $i = $aLines[0] To 1 Step -1
         If $aLines[$i] <> "" Then
             _GUICtrlListBox_AddString($hListCtrl, $aLines[$i])
@@ -470,13 +458,13 @@ Func _RemoveSearchHistoryItem($sKeyword)
     Local $sContent = FileRead(FileOpen($SEARCH_HISTORY_FILE, 0 + 256))
     Local $aLines = StringSplit(StringStripCR($sContent), @LF)
     Local $sNewContent = ""
-    
+
     For $i = 1 To $aLines[0]
         If $aLines[$i] <> "" And $aLines[$i] <> $sKeyword Then
             $sNewContent &= $aLines[$i] & @CRLF
         EndIf
     Next
-    
+
     Local $hFile = FileOpen($SEARCH_HISTORY_FILE, 2 + 256)
     FileWrite($hFile, $sNewContent)
     FileClose($hFile)
@@ -574,7 +562,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
         GUISetBkColor(0xFFFFFF, $hWaitGui)
         GUISetState(@SW_SHOW, $hWaitGui)
         GUISetCursor(15, 1)
-        Sleep(10)
+        Sleep(1)
     EndIf
 
     Local $iStart = $bAppend ? $iTotalLoaded + 1 : 1
@@ -610,7 +598,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     If $aLines[0] > 0 Then
         Local $sCurrentTitle = "", $sCurrentId = "", $sCurrentDur = "", $sCurrentUp = ""
-        
+
         ; Efficiently ReDim in chunks to avoid excessive ReDimming
         Local $iInitialCount = UBound($aSearchIds)
         ReDim $aSearchIds[$iInitialCount + $aLines[0]]
@@ -639,7 +627,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
                 $aSearchIds[$iCount] = $sCurrentId
                 $aSearchTitles[$iCount] = $sCurrentTitle
-                
+
                 $iCount += 1
                 $sCurrentTitle = ""
                 $sCurrentId = ""
@@ -647,7 +635,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
                 $sCurrentUp = ""
             EndIf
         Next
-        
+
         ; Shrink arrays to actual size
         ReDim $aSearchIds[$iCount]
         ReDim $aSearchTitles[$iCount]
@@ -690,7 +678,7 @@ Func _ShowContextMenu($bIsFavContext = False)
     Local $sTitle = $aSearchTitles[$iIndex + 1]
 
     Local $hMenu = _GUICtrlMenu_CreatePopup()
-    
+
     _GUICtrlMenu_AddMenuItem($hMenu, "Play...", 1001)
     _GUICtrlMenu_AddMenuItem($hMenu, "Play as &audio...", 1002)
     _GUICtrlMenu_AddMenuItem($hMenu, "Download...", 1003)
@@ -714,7 +702,7 @@ Func _ShowContextMenu($bIsFavContext = False)
     _GUICtrlMenu_AddMenuItem($hMenu, $sFavText, 1007)
 
     Local $iCmd = _GUICtrlMenu_TrackPopupMenu($hMenu, $hResultsGui, MouseGetPos(0), MouseGetPos(1), 1, 1, 2)
-    
+
     _GUICtrlMenu_DestroyMenu($hMenu)
 
     Switch $iCmd
@@ -762,7 +750,7 @@ EndFunc
 Func _AddDefenderExclusion()
     Local $sDir = @ScriptDir
     If StringRight($sDir, 1) <> "\" Then $sDir &= "\"
-    
+
     ; Use PowerShell to add exclusion. Silently continue if error (e.g. no admin)
     Local $sCmd = 'powershell -Command "Add-MpPreference -ExclusionPath ''' & $sDir & '''" -WindowStyle Hidden'
     Run($sCmd, @SystemDir, @SW_HIDE)
@@ -776,7 +764,7 @@ EndFunc
 Func _Action_ShowDescription($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     Local $sID = $aSearchIds[$iIndex + 1]
-    
+
     If Not FileExists($DESC_EXE_PATH) Then
         MsgBox(16, "Error", "description.exe not found in lib folder!")
         Return
@@ -789,15 +777,15 @@ Func _Action_ShowDescription($iIndex)
 
     Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
     Local $bData = Binary("")
-    
+
     While ProcessExists($iPID)
         $bData &= StdoutRead($iPID, False, True) ; True = Binary Mode
         Sleep(1)
     WEnd
     $bData &= StdoutRead($iPID, False, True)
-    
+
     GUIDelete($hWait)
-    
+
     Local $sDesc = BinaryToString($bData, 4) ; 4 = UTF-8
 
     If $sDesc = "" Then
@@ -815,7 +803,7 @@ EndFunc
 Func _Action_ShowComments($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     Local $sID = $aSearchIds[$iIndex + 1]
-    
+
     If Not FileExists($COMMENTS_EXE_PATH) Then
         MsgBox(16, "Error", "comments.exe not found in lib folder!")
         Return
@@ -830,7 +818,7 @@ EndFunc
 Func _Action_GoChannel($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     Local $sID = $aSearchIds[$iIndex + 1]
-    
+
     Local $hLoading = GUICreate("Working...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
     GUICtrlCreateLabel("Fetching channel information...", 10, 25, 230, 20, $SS_CENTER)
     GUISetBkColor(0xFFFFFF, $hLoading)
@@ -849,7 +837,7 @@ Func _Action_GoChannel($iIndex)
     ; More robust regex for various channel URL formats
     Local $pattern = "(https://www\.youtube\.com/(channel/|@)[^ \r\n]+)"
     Local $aMatch = StringRegExp($sChannelUrl, $pattern, 3)
-    
+
     If IsArray($aMatch) Then
         ShellExecute($aMatch[0])
     Else
@@ -877,6 +865,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
             GUISetBkColor(0xFFFFFF, $hLoading)
             GUISetState(@SW_SHOW, $hLoading)
             WinActivate($hLoading)
+        Sleep(1)
         EndIf
 
         Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
@@ -891,7 +880,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
         WEnd
         $sUrl &= StdoutRead($pid_url)
         $sErr &= StderrRead($pid_url)
-        
+
         $sUrl = StringStripWS($sUrl, 3)
 
         If $sUrl = "" Then
@@ -923,7 +912,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
             ExitLoop
         EndIf
     WEnd
-    
+
     If IsHWnd($hPlayGui) Then
         $oWMP.controls.stop()
         GUIDelete($hPlayGui)
@@ -1004,6 +993,7 @@ Func playmedia($url)
         GUICtrlCreateLabel("Loading, please wait...", 10, 25, 230, 30, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hLoading)
         GUISetState(@SW_SHOW, $hLoading)
+        Sleep(1)
     EndIf
 
     Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
@@ -1040,6 +1030,7 @@ Func playaudio($url)
         GUICtrlCreateLabel("Loading, please wait...", 10, 25, 230, 30, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hLoading)
         GUISetState(@SW_SHOW, $hLoading)
+        Sleep(1)
     EndIf
 
     Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
@@ -1087,20 +1078,20 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         EndIf
 
         $oWMPCtrl = GUICtrlCreateObj($oWMP, 0, 0, $iWidth, $iHeight)
-        
+
         $g_hStatusLabel = GUICtrlCreateLabel("", 10, $iHeight + 5, $iWidth - 100, 20)
         GUICtrlSetFont(-1, 10, 800)
         GUICtrlSetColor(-1, 0xFFFF00)
 
         $g_lblPlayerInfo = GUICtrlCreateLabel("Playing: ", 10, $iHeight + 22, $iWidth - 100, 18)
         GUICtrlSetColor(-1, 0x00FF00)
-        
+
         $g_lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 22, 70, 18)
         GUICtrlSetColor(-1, 0xFFFF00)
-        
+
         $g_lblRepeat = GUICtrlCreateLabel("Repeat: OFF", $iWidth - 80, $iHeight + 5, 70, 18)
         GUICtrlSetColor(-1, 0xFFFF00)
-        
+
         GUISetState(@SW_SHOW, $hPlayGui)
 
         ; Initialize Hidden Controls and Accelerators ONLY ONCE
@@ -1188,13 +1179,13 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
     $oWMP.url = $sUrl
     $oWMP.settings.volume = 100
     $oWMP.uiMode = "none"
-    
+
     If (Not $allowAutoPlayToggle) Or (Not $g_bAutoPlay) Then GUICtrlSetState($g_lblAuto, $GUI_HIDE)
-    If $allowAutoPlayToggle And $g_bAutoPlay Then 
+    If $allowAutoPlayToggle And $g_bAutoPlay Then
         GUICtrlSetState($g_lblAuto, $GUI_SHOW)
         GUICtrlSetData($g_lblAuto, "Auto: ON")
     EndIf
-    If $allowAutoPlayToggle And Not $g_bAutoPlay Then 
+    If $allowAutoPlayToggle And Not $g_bAutoPlay Then
         GUICtrlSetState($g_lblAuto, $GUI_SHOW)
         GUICtrlSetData($g_lblAuto, "Auto: OFF")
     EndIf
@@ -1240,7 +1231,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                         $g_iOriginalY = $aPos[1]
                         $g_iOriginalW = $aPos[2]
                         $g_iOriginalH = $aPos[3]
-                        
+
                         GUISetStyle(BitOR($WS_POPUP, $WS_VISIBLE), -1, $hPlayGui)
                         WinMove($hPlayGui, "", 0, 0, @DesktopWidth, @DesktopHeight)
                         GUICtrlSetPos($oWMPCtrl, 0, 0, @DesktopWidth, @DesktopHeight)
@@ -1398,7 +1389,7 @@ EndFunc
 
 Func _ReportStatus($sText)
     If $sText == "" Then Return
-    
+
     ; Suppress duplicates within 1s to be safe
     If StringLower($sText) = StringLower($g_sLastReportedText) And TimerDiff($g_iLastReportedTime) < 1000 Then Return
     $g_sLastReportedText = $sText
@@ -1408,7 +1399,7 @@ Func _ReportStatus($sText)
         GUICtrlSetData($g_hStatusLabel, $sText)
         AdlibRegister("_ClearToolTip", 2000)
     EndIf
-    
+
     ; Instead of manual speech, update window title which screen readers announce naturally
     If IsHWnd($hPlayGui) Then
         WinSetTitle($hPlayGui, "", $sText & " - " & $g_sCurrentVideoTitle)
@@ -1422,9 +1413,9 @@ Func _NVDA_Speak($sText)
         Local $sDllPath = @ScriptDir & "\lib\" & $sDllName
         $g_hNVDADll = DllOpen($sDllPath)
     EndIf
-    
+
     Local $bNVDASuccess = False
-    
+
     If $g_hNVDADll <> -1 Then
         ; Gọi trực tiếp nvdaController_speakText để thông báo cho NVDA
         ; Sử dụng wstr cho Unicode và int cho kết quả trả về
@@ -1434,13 +1425,13 @@ Func _NVDA_Speak($sText)
             $bNVDASuccess = True
         EndIf
     EndIf
-    
+
     ; Nếu NVDA không khả dụng hoặc lỗi, dùng SAPI 5 làm phương án dự phòng
     If Not $bNVDASuccess Then
         If Not IsObj($oVoice) Then $oVoice = ObjCreate("SAPI.SpVoice")
         If IsObj($oVoice) Then $oVoice.Speak($sText, 1) ; 1 = Async
     EndIf
-    
+
     Return $bNVDASuccess
 EndFunc
 
@@ -1448,12 +1439,12 @@ Func _ClearToolTip()
     If IsDeclared("g_hStatusLabel") Then
         GUICtrlSetData($g_hStatusLabel, "")
     EndIf
-    
+
     ; Restore original title when clearing status
     If IsHWnd($hPlayGui) Then
         WinSetTitle($hPlayGui, "", $g_sCurrentVideoTitle)
     EndIf
-    
+
     AdlibUnRegister("_ClearToolTip")
 EndFunc
 
@@ -1674,7 +1665,7 @@ Func _ShowFavorites()
     $hFavoritesGui = GUICreate("Favorite Videos", 400, 480)
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 380, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    
+
     Local $btn_clear_fav = GUICtrlCreateButton("Clear all favorites", 10, 400, 380, 30)
     Local $btn_go_back = GUICtrlCreateButton("go back", 10, 440, 380, 30)
 
@@ -1721,7 +1712,7 @@ Func _ShowFavorites()
                     $hResultsGui = $hFavoritesGui
                     Local $res = _ShowContextMenu(True)
                     $hResultsGui = $oldResultsGui
-                    
+
                     If $res = "REFRESH" Then
                         _LoadFavorites()
                         _GUICtrlListBox_SetCurSel($lst_results, 0)
@@ -1833,7 +1824,7 @@ Func _ShowHistory()
                     $hResultsGui = $hHistoryGui
                     Local $res = _ShowContextMenu(2) ; 2 = History Context
                     $hResultsGui = $oldResultsGui
-                    
+
                     If $res = "REFRESH" Then
                         _LoadHistory()
                         _GUICtrlListBox_SetCurSel($lst_results, 0)
@@ -1873,7 +1864,7 @@ Func _LoadHistory()
     Local $sContent = FileRead($hFile)
     FileClose($hFile)
 
-    If $sContent = "" Then 
+    If $sContent = "" Then
         MsgBox(64, "Info", "No history yet.")
         Return
     EndIf
@@ -1882,21 +1873,21 @@ Func _LoadHistory()
     Global $aSearchIds[1]
     Global $aSearchTitles[1]
     $iTotalLoaded = 0
-    $bEndReached = True 
+    $bEndReached = True
 
     ; Show from newest to oldest
     For $i = $aHistoryLines[0] To 1 Step -1
         Local $sLine = $aHistoryLines[$i]
         If $sLine = "" Then ContinueLoop
-        
+
         Local $iPos = StringInStr($sLine, "|")
         If $iPos > 0 Then
             Local $sID = StringLeft($sLine, $iPos - 1)
             Local $sTitle = StringTrimLeft($sLine, $iPos)
-            
+
             $iTotalLoaded += 1
             _GUICtrlListBox_AddString($lst_results, $iTotalLoaded & ". " & $sTitle)
-            
+
             ReDim $aSearchIds[$iTotalLoaded + 1]
             ReDim $aSearchTitles[$iTotalLoaded + 1]
             $aSearchIds[$iTotalLoaded] = $sID
@@ -1999,7 +1990,7 @@ Func _Check_YTDLP_Update()
         Local $sLatestVersion = $aMatch[0]
         $sLatestVersion = StringRegExpReplace($sLatestVersion, "[^0-9.]", "")
         Local $sLocalVersion = _Get_YTDLP_LocalVersion()
-        
+
         If $sLatestVersion <> $sLocalVersion Then
             Local $sVerInfo = "A new version (" & $sLatestVersion & ") is available!" & @CRLF
             If $sLocalVersion <> "0" Then
@@ -2007,7 +1998,7 @@ Func _Check_YTDLP_Update()
             Else
                 $sVerInfo &= "Your version: Not installed or unknown"
             EndIf
-            
+
             Local $iMsg = MsgBox(36, "Update Available", $sVerInfo & @CRLF & @CRLF & _
                                      "Do you want to download it now?")
             If $iMsg = 6 Then
@@ -2056,10 +2047,10 @@ Func _Check_YTDLP_Update()
                         ProcessClose("yt-dlp.exe")
                         Sleep(500)
                     WEnd
-                    
+
                     ; Wait a bit to ensure file is not locked
                     Sleep(1000)
-                    
+
                     FileDelete($sSavePathFinal)
                     If FileMove($sSavePathTemp, $sSavePathFinal, 1) Then
                         MsgBox(64, "Success", "yt-dlp has been updated successfully!")
@@ -2129,7 +2120,7 @@ Func _CheckGithubUpdate()
         Local $sLatestVersion = $aMatch[0]
         $sLatestVersion = StringRegExpReplace($sLatestVersion, "[^0-9.]", "")
         Local $sLocalAppVersion = StringRegExpReplace($version, "[^0-9.]", "")
-        
+
         If $sLatestVersion <> $sLocalAppVersion Then
             SoundPlay("sounds/update.wav")
             Local $iMsg = MsgBox(36, "Update Available", "A new version (" & $sLatestVersion & ") is available!" & @CRLF & _
