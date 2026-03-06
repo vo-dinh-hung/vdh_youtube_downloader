@@ -2030,12 +2030,13 @@ Func _Check_YTDLP_Update()
 
                 Until InetGetInfo($hDownload, 2)
 
-                Local $iError = InetGetInfo($hDownload, 3)
+                Local $bSuccess = InetGetInfo($hDownload, 3)
+                Local $iError = InetGetInfo($hDownload, 4)
                 InetClose($hDownload)
                 ProgressOff()
                 GuiDelete($downloadGui)
 
-                If $iError Then
+                If Not $bSuccess Then
                     MsgBox(16, "Error", "Download failed. Error code: " & $iError)
                     FileDelete($sSavePathTemp)
                     Return
@@ -2155,7 +2156,8 @@ Func _CheckGithubUpdate()
 
                 Until InetGetInfo($hDownload, 2)
 
-                Local $iError = InetGetInfo($hDownload, 3)
+                Local $bSuccess = InetGetInfo($hDownload, 3)
+                Local $iError = InetGetInfo($hDownload, 4)
                 InetClose($hDownload)
 
                 DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
@@ -2163,7 +2165,7 @@ Func _CheckGithubUpdate()
                 ProgressOff()
                 GuiDelete($downloadGui)
 
-                If $iError Then
+                If Not $bSuccess Then
                     MsgBox(16, "Error", "Download failed. Error code: " & $iError)
                     FileDelete($sSavePath)
                     Return
