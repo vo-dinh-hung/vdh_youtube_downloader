@@ -20,8 +20,10 @@
 #include <GuiMenu.au3>
 
 Global $version = "1.3"
+Global $YTDLP_version = "2026.02.21"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe" ; Định nghĩa đường dẫn file python exe
+Global $COMMENTS_EXE_PATH = @ScriptDir & "\lib\comments.exe"
 Global $dll = DllOpen("user32.dll")
 Global $g_hNVDADll = -1 ; Handle cho NVDA DLL
 Global $oVoice = 0 ; Đối tượng SAPI 5 (Lazy init)
@@ -34,7 +36,7 @@ Global $bIsSearching = False
 Global $bEndReached = False
 Global $g_bAutoPlay = True
 Global $g_bRepeat = False
-Global $g_iSeekStep = 5
+Global $g_iSeekStep = 10
 
 
 Global $mainform
@@ -135,6 +137,8 @@ While 1
     Switch $msg
         Case $GUI_EVENT_CLOSE, $menu_exit
             SoundPlay(@ScriptDir & "\sounds\exit.wav", 1)
+            ProcessClose("comments.exe")
+            ProcessClose("description.exe")
             DllClose($dll)
             Exit
 
@@ -197,11 +201,17 @@ Func _ShowDownloader()
 
     $paste = GUICtrlCreateButton("Paste Link (Alt+P)", 320, 75, 70, 20)
 
-    GUICtrlCreateLabel("Select Format (Tab to navigate):", 10, 75, 200, 20)
+    GUICtrlCreateLabel("Select Format :", 10, 75, 200, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $cbo_dl_format = GUICtrlCreateCombo("Video MP4 (Best)", 10, 100, 280, 20, $CBS_DROPDOWNLIST)
     GUICtrlSetTip(-1, "Use Arrow keys to select download format")
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
+
+    GUICtrlCreateLabel("Select Bitrate:", 210, 75, 130, 20)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+    $cbo_dl_bitrate = GUICtrlCreateCombo("320 kbps", 210, 100, 180, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetTip(-1, "Use Arrow keys to select bitrate")
+    GUICtrlSetData(-1, "256 kbps|192 kbps|128 kbps")
 
     $btn_start_dl = GUICtrlCreateButton("Download (Alt+D)", 10, 150, 380, 40)
     $openbtn = GUICtrlCreateButton("Open Download Folder (Alt+O)", 10, 200, 380, 30)
@@ -245,6 +255,11 @@ Func _ShowDownloader()
                     Else
                         $sFmt = "-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
                     EndIf
+            Local $sBitrate = GUICtrlRead($cbo_dl_bitrate)
+            Local $iKbps = StringRegExpReplace($sBitrate, "[^0-9]", "")
+            If $iKbps <> "" And (StringInStr($sTxt, "Audio") Or StringInStr($sTxt, "MP3") Or StringInStr($sTxt, "WAV") Or StringInStr($sTxt, "M4A")) Then
+                $sFmt &= " --audio-quality " & $iKbps & "k"
+            EndIf
 
                     Local $sExtraArgs = ""
                     If StringInStr($url, "watch?v=") And StringInStr($url, "list=") Then
@@ -478,14 +493,18 @@ Func _ShowSearchResultsWindow($sKeyword)
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
+    Local $hDummyAudio = GUICtrlCreateDummy()
+    Local $hDummyComments = GUICtrlCreateDummy()
     Local $hDummyEnterResults = GUICtrlCreateDummy()
     Local $hDummyHomeResults = GUICtrlCreateDummy()
     Local $hDummyEndResults = GUICtrlCreateDummy()
     Local $hDummyEscResults = GUICtrlCreateDummy()
-    Local $aAccel[7][2] = [ _
+    Local $aAccel[9][2] = [ _
         ["^k", $dummy_copy], _
         ["!b", $dummy_browser], _
         ["!g", $dummy_channel], _
+        ["^{ENTER}", $hDummyAudio], _
+        ["^+c", $hDummyComments], _
         ["{ENTER}", $hDummyEnterResults], _
         ["{HOME}", $hDummyHomeResults], _
         ["{END}", $hDummyEndResults], _
@@ -533,6 +552,14 @@ Func _ShowSearchResultsWindow($sKeyword)
                 _Action_OpenBrowser(_GUICtrlListBox_GetCurSel($lst_results))
             Case $dummy_channel
                 _Action_GoChannel(_GUICtrlListBox_GetCurSel($lst_results))
+            Case $hDummyAudio
+                If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
+                    _PlayLoop(_GUICtrlListBox_GetCurSel($lst_results), True)
+                EndIf
+            Case $hDummyComments
+                If ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($lst_results) Then
+                    _Action_ShowComments(_GUICtrlListBox_GetCurSel($lst_results))
+                EndIf
         EndSwitch
     WEnd
 EndFunc
@@ -542,12 +569,12 @@ Func _SearchYouTube($sKeyword, $bAppend)
 
     Local $hWaitGui = 0
     If Not $bAppend Then
-        $hWaitGui = GUICreate("Searching...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
-        GUICtrlCreateLabel("Searching: " & StringLeft($sKeyword, 20) & "...", 10, 25, 230, 20, $SS_CENTER)
+        $hWaitGui = GUICreate("Searching", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
+        GUICtrlCreateLabel($sKeyword & "...", 10, 25, 230, 20, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hWaitGui)
         GUISetState(@SW_SHOW, $hWaitGui)
         GUISetCursor(15, 1)
-        Sleep(2000) ; Wait 2 seconds for visibility/accessibility
+        Sleep(10)
     EndIf
 
     Local $iStart = $bAppend ? $iTotalLoaded + 1 : 1
@@ -671,6 +698,7 @@ Func _ShowContextMenu($bIsFavContext = False)
     _GUICtrlMenu_AddMenuItem($hMenu, "Open in Browser...", 1005)
     _GUICtrlMenu_AddMenuItem($hMenu, "Copy Link...", 1006)
     _GUICtrlMenu_AddMenuItem($hMenu, "&Video Description...", 1008)
+    _GUICtrlMenu_AddMenuItem($hMenu, "Video Com&ments...", 1009)
 
     Local $sID = $aSearchIds[$iIndex + 1]
     Local $bIsAlreadyFav = _IsFavorite($sID)
@@ -718,6 +746,8 @@ Func _ShowContextMenu($bIsFavContext = False)
             _Action_CopyLink($iIndex)
         Case 1008
             _Action_ShowDescription($iIndex)
+        Case 1009
+            _Action_ShowComments($iIndex)
     EndSwitch
 EndFunc
 
@@ -782,6 +812,21 @@ Func _Action_ShowDescription($iIndex)
     EndIf
 EndFunc
 
+Func _Action_ShowComments($iIndex)
+    If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
+    Local $sID = $aSearchIds[$iIndex + 1]
+    
+    If Not FileExists($COMMENTS_EXE_PATH) Then
+        MsgBox(16, "Error", "comments.exe not found in lib folder!")
+        Return
+    EndIf
+
+    ; Directly run comments.exe with the YouTube URL.
+    ; comments.exe already handles fetching comments internally.
+    Local $sUrl = "https://www.youtube.com/watch?v=" & $sID
+    Run('"' & $COMMENTS_EXE_PATH & '" "' & $sUrl & '"')
+EndFunc
+
 Func _Action_GoChannel($iIndex)
     If $iIndex < 0 Or $iIndex >= UBound($aSearchIds) - 1 Then Return
     Local $sID = $aSearchIds[$iIndex + 1]
@@ -827,8 +872,8 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
             GUICtrlSetData($g_hStatusLabel, "Fetching URL...")
         Else
             ; Show a small loading popup ONLY if player isn't open yet
-            $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
-            GUICtrlCreateLabel("Playing:" & @CRLF & StringLeft($sTitle, 35) & "...", 10, 15, 230, 40, $SS_CENTER)
+            $hLoading = GUICreate("Playing", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hResultsGui)
+            GUICtrlCreateLabel("playing...", 10, 15, 230, 40, $SS_CENTER)
             GUISetBkColor(0xFFFFFF, $hLoading)
             GUISetState(@SW_SHOW, $hLoading)
             WinActivate($hLoading)
@@ -890,10 +935,16 @@ EndFunc
 Func _ShowDownloadDialog($sID, $sTitle)
     Local $sUrl = "https://www.youtube.com/watch?v=" & $sID
     Local $hDLGui = GUICreate("Download Options", 300, 150, -1, -1, -1, -1)
-    GUICtrlCreateLabel("Select Format (Tab to navigate):", 10, 20, 280, 20)
+    GUICtrlCreateLabel("Select Format :", 10, 20, 280, 20)
     Local $cboFormat = GUICtrlCreateCombo("Video MP4 (Best)", 10, 40, 280, 20, $CBS_DROPDOWNLIST)
     GUICtrlSetTip(-1, "Use Arrow keys to select download format")
     GUICtrlSetData(-1, "Video WebM|Audio MP3|Audio M4A|Audio WAV")
+    GUICtrlCreateLabel("Select Bitrate:", 210, 75, 130, 20)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+    $cbo_dl_bitrate = GUICtrlCreateCombo("320 kbps", 210, 100, 180, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetTip(-1, "Use Arrow keys to select bitrate")
+    GUICtrlSetData(-1, "256 kbps|192 kbps|128 kbps")
+
     Local $btn_DownloadNow = GUICtrlCreateButton("Download", 100, 80, 100, 30)
 
     GUISetState(@SW_SHOW, $hDLGui)
@@ -905,6 +956,7 @@ Func _ShowDownloadDialog($sID, $sTitle)
             ExitLoop
         ElseIf $nMsg = $btn_DownloadNow Then
             Local $sTxt = GUICtrlRead($cboFormat)
+            Local $sBitrate = GUICtrlRead($cbo_dl_bitrate)
             GUIDelete($hDLGui)
 
             Local $sFmt = ""
@@ -918,6 +970,11 @@ Func _ShowDownloadDialog($sID, $sTitle)
                 $sFmt = "bestvideo+bestaudio --merge-output-format webm"
             Else
                 $sFmt = "-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            EndIf
+            Local $sBitrate = GUICtrlRead($cbo_dl_bitrate)
+            Local $iKbps = StringRegExpReplace($sBitrate, "[^0-9]", "")
+            If $iKbps <> "" And (StringInStr($sTxt, "Audio") Or StringInStr($sTxt, "MP3") Or StringInStr($sTxt, "WAV") Or StringInStr($sTxt, "M4A")) Then
+                $sFmt &= " --audio-quality " & $iKbps & "k"
             EndIf
 
             Local $iPidDLNow = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "download/%(title)s.%(ext)s" "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
@@ -943,8 +1000,8 @@ Func playmedia($url)
         GUICtrlSetData($g_lblPlayerInfo, "Loading video...")
         GUICtrlSetData($g_hStatusLabel, "Fetching stream URL...")
     Else
-        $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-        GUICtrlCreateLabel("Loading YouTube Video, please wait...", 10, 25, 230, 30, $SS_CENTER)
+        $hLoading = GUICreate("Playing", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+        GUICtrlCreateLabel("Loading, please wait...", 10, 25, 230, 30, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hLoading)
         GUISetState(@SW_SHOW, $hLoading)
     EndIf
@@ -979,8 +1036,8 @@ Func playaudio($url)
         GUICtrlSetData($g_lblPlayerInfo, "Loading audio...")
         GUICtrlSetData($g_hStatusLabel, "Fetching stream URL...")
     Else
-        $hLoading = GUICreate("Playing...", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-        GUICtrlCreateLabel("Loading YouTube Audio, please wait...", 10, 25, 230, 30, $SS_CENTER)
+        $hLoading = GUICreate("Playing", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+        GUICtrlCreateLabel("Loading, please wait...", 10, 25, 230, 30, $SS_CENTER)
         GUISetBkColor(0xFFFFFF, $hLoading)
         GUISetState(@SW_SHOW, $hLoading)
     EndIf
@@ -1035,7 +1092,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         GUICtrlSetFont(-1, 10, 800)
         GUICtrlSetColor(-1, 0xFFFF00)
 
-        $g_lblPlayerInfo = GUICtrlCreateLabel("Playing: " & $sTitle, 10, $iHeight + 22, $iWidth - 100, 18)
+        $g_lblPlayerInfo = GUICtrlCreateLabel("Playing: ", 10, $iHeight + 22, $iWidth - 100, 18)
         GUICtrlSetColor(-1, 0x00FF00)
         
         $g_lblAuto = GUICtrlCreateLabel("Auto: ON", $iWidth - 80, $iHeight + 22, 70, 18)
@@ -1121,7 +1178,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         ; Update Title and metadata for persistent GUI
         $g_sCurrentVideoTitle = $sTitle
         WinSetTitle($hPlayGui, "", $sTitle)
-        GUICtrlSetData($g_lblPlayerInfo, "Playing: " & $sTitle)
+        GUICtrlSetData($g_lblPlayerInfo, "Playing: ")
     EndIf
 
     ; Flush message queue to ignore accidental seeks/commands from previous track
@@ -1171,7 +1228,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                     _ReportStatus("Paused")
                 ElseIf $ps = 2 Or $ps = 1 Then ; Paused or Stopped
                     $oWMP.controls.play()
-                    _ReportStatus("Playing")
+                    _ReportStatus("Play")
                 EndIf
 
             Case $hDummyCtrlShiftE
@@ -1219,8 +1276,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             Case $hDummyEnd
                 Local $fDuration = $oWMP.currentMedia.duration
                 If $fDuration > 0 Then
-                    $oWMP.controls.currentPosition = $fDuration - 0.1
-                    _ReportStatus("Seek to End")
+                    $oWMP.controls.currentPosition = $fDuration - 20
+                    _ReportStatus("Near end")
                 Else
                     $sAction = "STOP"
                     ExitLoop
@@ -1228,6 +1285,8 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
 
             Case $hDummyCtrlW
                 SoundPlay(@ScriptDir & "\sounds\exit.wav", 1)
+                ProcessClose("comments.exe")
+                ProcessClose("description.exe")
                 DllClose($dll)
                 Exit
 
@@ -1292,13 +1351,13 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
 
             Case $hDummyHome
                 $oWMP.controls.currentPosition = 0
-                _ReportStatus("Restart Track")
+                _ReportStatus("Restart from beginning")
 
             Case $hDummyEnd
                 Local $fDuration = $oWMP.currentMedia.duration
                 If $fDuration > 0 Then
-                    $oWMP.controls.currentPosition = $fDuration - 0.1
-                    _ReportStatus("Seek to End")
+                    $oWMP.controls.currentPosition = $fDuration - 20
+                    _ReportStatus("Near end")
                 Else
                     $sAction = "STOP"
                     ExitLoop
@@ -1622,14 +1681,18 @@ Func _ShowFavorites()
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
+    Local $hDummyAudioFav = GUICtrlCreateDummy()
+    Local $hDummyCommentsFav = GUICtrlCreateDummy()
     Local $hDummyEnterFav = GUICtrlCreateDummy()
     Local $hDummyHomeFav = GUICtrlCreateDummy()
     Local $hDummyEndFav = GUICtrlCreateDummy()
     Local $hDummyEscFav = GUICtrlCreateDummy()
-    Local $aAccel[7][2] = [ _
+    Local $aAccel[9][2] = [ _
         ["^k", $dummy_copy], _
         ["!b", $dummy_browser], _
         ["!g", $dummy_channel], _
+        ["^{ENTER}", $hDummyAudioFav], _
+        ["^+c", $hDummyCommentsFav], _
         ["{ENTER}", $hDummyEnterFav], _
         ["{HOME}", $hDummyHomeFav], _
         ["{END}", $hDummyEndFav], _
@@ -1731,14 +1794,18 @@ Func _ShowHistory()
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
     Local $dummy_channel = GUICtrlCreateDummy()
+    Local $hDummyAudioHist = GUICtrlCreateDummy()
+    Local $hDummyCommentsHist = GUICtrlCreateDummy()
     Local $hDummyEnterHist = GUICtrlCreateDummy()
     Local $hDummyHomeHist = GUICtrlCreateDummy()
     Local $hDummyEndHist = GUICtrlCreateDummy()
     Local $hDummyEscHist = GUICtrlCreateDummy()
-    Local $aAccel[7][2] = [ _
+    Local $aAccel[9][2] = [ _
         ["^k", $dummy_copy], _
         ["!b", $dummy_browser], _
         ["!g", $dummy_channel], _
+        ["^{ENTER}", $hDummyAudioHist], _
+        ["^+c", $hDummyCommentsHist], _
         ["{ENTER}", $hDummyEnterHist], _
         ["{HOME}", $hDummyHomeHist], _
         ["{END}", $hDummyEndHist], _
@@ -1883,38 +1950,137 @@ Func _AutoDetectClipboardLink()
         EndSelect
     WEnd
 EndFunc
+
 Func _Check_YTDLP_Update()
-    Local $hWait = GUICreate("loading", 300, 300, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-    GUICtrlCreateLabel("Checking for yt-dlp updates, please wait...", 10, 25, 280, 50, $SS_CENTER)
-    GUISetBkColor(0xFFFFFF, $hWait)
-    GUISetState(@SW_SHOW, $hWait)
-    
-    Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --update --simulate"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
-    Local $sOutput = ""
-    While ProcessExists($iPID)
-        $sOutput &= StdoutRead($iPID)
-        Sleep(1)
-    WEnd
-    $sOutput &= StdoutRead($iPID)
-    GUIDelete($hWait)
-    
-    If StringInStr($sOutput, "is up to date") Then
-        MsgBox(64, "yt-dlp Update", "You are already using the latest version of yt-dlp.")
-    ElseIf StringInStr($sOutput, "Latest version") Or StringInStr($sOutput, "Updating to") Then
-        Local $iRes = MsgBox(36, "yt-dlp Update", "A new version of yt-dlp is available. Would you like to update now?")
-        If $iRes = 6 Then ; Yes
-            Local $hUpd = GUICreate("loading", 300, 300, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
-            GUICtrlCreateLabel("Updating yt-dlp, please wait...", 10, 25, 280, 50, $SS_CENTER)
-            GUISetBkColor(0xFFFFFF, $hUpd)
-            GUISetState(@SW_SHOW, $hUpd)
-            RunWait(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --update"', @ScriptDir, @SW_HIDE)
-            GUIDelete($hUpd)
-            MsgBox(64, "Success", "yt-dlp has been updated successfully!")
+
+    Local $sCheckingText = "Checking for updates yt-dlp..."
+    Local $hCheckGUI = GuiCreate("", 300, 80, -1, -1, BitOR($WS_CAPTION, $WS_POPUP), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+    GuiSetBkColor(0xFFFFFF, $hCheckGUI)
+    Local $lblCheck = GuiCtrlCreateLabel($sCheckingText, 10, 25, 280, 30, $ES_CENTER)
+    GuiCtrlSetFont($lblCheck, 10, 400, 0, "Arial")
+    GuiSetState(@SW_SHOW, $hCheckGUI)
+    Sleep(3000)
+    GuiDelete($hCheckGUI)
+
+    If Ping("github.com", 2000) = 0 And Ping("google.com", 2000) = 0 Then
+         MsgBox(48, "Check Update", "No internet connection.")
+         Return
+    EndIf
+
+    Local $sRepoOwner = "yt-dlp"
+    Local $sRepoName = "yt-dlp"
+    Local $sApiUrl = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+
+    Local $oHTTP = ObjCreate("WinHttp.WinHttpRequest.5.1")
+    If Not IsObj($oHTTP) Then
+        MsgBox(16, "Error", "Cannot create HTTP Object.")
+        Return
+    EndIf
+
+    $oHTTP.Open("GET", $sApiUrl, False)
+    $oHTTP.SetRequestHeader("User-Agent", "Mozilla/5.0")
+    $oHTTP.Send()
+
+    If @error Then
+        MsgBox(48, "Check Update", "Connection failed. Please check your internet.")
+        Return
+    EndIf
+
+    If $oHTTP.Status <> 200 Then
+        MsgBox(48, "Check Update", "Cannot connect to update server or no release found." & @CRLF & "Status Code: " & $oHTTP.Status)
+        Return
+    EndIf
+
+    Local $sResponse = $oHTTP.ResponseText
+
+    Local $aMatch = StringRegExp($sResponse, '"tag_name":\s*"([^"]+)"', 3)
+
+    If IsArray($aMatch) Then
+        Local $sLatestVersion = $aMatch[0]
+        $sLatestVersion = StringRegExpReplace($sLatestVersion, "[^0-9.]", "")
+        Local $sLocalVersion = _Get_YTDLP_LocalVersion()
+        
+        If $sLatestVersion <> $sLocalVersion Then
+            Local $sVerInfo = "A new version (" & $sLatestVersion & ") is available!" & @CRLF
+            If $sLocalVersion <> "0" Then
+                $sVerInfo &= "Your version: " & $sLocalVersion
+            Else
+                $sVerInfo &= "Your version: Not installed or unknown"
+            EndIf
+            
+            Local $iMsg = MsgBox(36, "Update Available", $sVerInfo & @CRLF & @CRLF & _
+                                     "Do you want to download it now?")
+            If $iMsg = 6 Then
+                $downloadtext = "please wait..."
+                $downloadGui = GuiCreate("downloading update...", 400, 100, -1, -1)
+                GuiSetBkColor($COLOR_WHITE)
+                GuiCtrlCreateLabel($downloadtext, 40, 40)
+                GuiSetState(@SW_SHOW, $downloadGui)
+                Local $sDownloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+                DirCreate(@ScriptDir & "\lib")
+                Local $sSavePathTemp = @ScriptDir & "\lib\yt-dlp.exe.new"
+                Local $sSavePathFinal = @ScriptDir & "\lib\yt-dlp.exe"
+
+                ProgressOn("Downloading Update", "Please wait while downloading...", "0%")
+
+                Local $hDownload = InetGet($sDownloadURL, $sSavePathTemp, 1, 1)
+
+                Do
+                    Sleep(100)
+                    Local $iBytesRead = InetGetInfo($hDownload, 0)
+                    Local $iFileSize = InetGetInfo($hDownload, 1)
+
+                    If $iFileSize > 0 Then
+                        Local $iPct = Round(($iBytesRead / $iFileSize) * 100)
+                        ProgressSet($iPct, $iPct & "% complete")
+                    Else
+                        ProgressSet(0, "Connecting...")
+                    EndIf
+
+                Until InetGetInfo($hDownload, 2)
+
+                Local $iError = InetGetInfo($hDownload, 3)
+                InetClose($hDownload)
+                ProgressOff()
+                GuiDelete($downloadGui)
+
+                If $iError Then
+                    MsgBox(16, "Error", "Download failed. Error code: " & $iError)
+                    FileDelete($sSavePathTemp)
+                    Return
+                EndIf
+
+                If FileExists($sSavePathTemp) And FileGetSize($sSavePathTemp) > 0 Then
+                    ; Close any running yt-dlp.exe processes
+                    While ProcessExists("yt-dlp.exe")
+                        ProcessClose("yt-dlp.exe")
+                        Sleep(500)
+                    WEnd
+                    
+                    ; Wait a bit to ensure file is not locked
+                    Sleep(1000)
+                    
+                    FileDelete($sSavePathFinal)
+                    If FileMove($sSavePathTemp, $sSavePathFinal, 1) Then
+                        MsgBox(64, "Success", "yt-dlp has been updated successfully!")
+                        If MsgBox(36, "Restart Required", "The software needs to restart to apply the update. Restart now?") = 6 Then
+                            ShellExecute(@ScriptFullPath)
+                            Exit
+                        EndIf
+                    Else
+                        MsgBox(16, "Error", "Failed to replace yt-dlp.exe. Please close any programs using it and try again.")
+                        FileDelete($sSavePathTemp)
+                    EndIf
+                EndIf
+            EndIf
+        Else
+            MsgBox(64, "no update available", "You are using the latest version from yt-dlp.")
         EndIf
     Else
-        MsgBox(16, "Error", "Could not check for updates. Please check your internet connection." & @CRLF & @CRLF & "Output: " & $sOutput)
+        MsgBox(16, "Error", "Could not parse version information.")
     EndIf
 EndFunc
+
 Func _CheckGithubUpdate()
 
     Local $sCheckingText = "Checking for updates..."
@@ -1942,7 +2108,7 @@ Func _CheckGithubUpdate()
     EndIf
 
     $oHTTP.Open("GET", $sApiUrl, False)
-
+    $oHTTP.SetRequestHeader("User-Agent", "Mozilla/5.0")
     $oHTTP.Send()
 
     If @error Then
@@ -1961,8 +2127,10 @@ Func _CheckGithubUpdate()
 
     If IsArray($aMatch) Then
         Local $sLatestVersion = $aMatch[0]
-        $sLatestVersion = StringReplace($sLatestVersion, "v", "")
-        If $sLatestVersion <> $version Then
+        $sLatestVersion = StringRegExpReplace($sLatestVersion, "[^0-9.]", "")
+        Local $sLocalAppVersion = StringRegExpReplace($version, "[^0-9.]", "")
+        
+        If $sLatestVersion <> $sLocalAppVersion Then
             SoundPlay("sounds/update.wav")
             Local $iMsg = MsgBox(36, "Update Available", "A new version (" & $sLatestVersion & ") is available!" & @CRLF & _
                                      "Your version: " & $version & @CRLF & @CRLF & _
@@ -1996,6 +2164,7 @@ Func _CheckGithubUpdate()
 
                 Until InetGetInfo($hDownload, 2)
 
+                Local $iError = InetGetInfo($hDownload, 3)
                 InetClose($hDownload)
 
                 DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
@@ -2003,12 +2172,17 @@ Func _CheckGithubUpdate()
                 ProgressOff()
                 GuiDelete($downloadGui)
 
-                SoundPlay("sounds/updated.wav")
+                If $iError Then
+                    MsgBox(16, "Error", "Download failed. Error code: " & $iError)
+                    FileDelete($sSavePath)
+                    Return
+                EndIf
 
-                MsgBox(64, "Success", "Downloaded successfully!" & @CRLF & "File saved as: " & $sSavePath)
+                If FileExists($sSavePath) And FileGetSize($sSavePath) > 0 Then
 Run("unzip.bat")
                 ; ShellExecute($sSavePath)
 Exit
+                EndIf
             EndIf
         Else
             MsgBox(64, "no update available", "You are using the latest version (" & $version & ").") ; [SỬA LỖI] Đổi $sAppVersion thành $version
@@ -2017,6 +2191,7 @@ Exit
         MsgBox(16, "Error", "Could not parse version information.")
     EndIf
 EndFunc
+
 Func _ShowChangelog()
     Local $sFilePath = "docs\changelog.txt"
     Local $sContent = "No changelog found."
@@ -2038,4 +2213,13 @@ Func _ShowChangelog()
                 ExitLoop
         EndSwitch
     WEnd
+EndFunc
+
+Func _Get_YTDLP_LocalVersion()
+    If Not FileExists($YT_DLP_PATH) Then Return "0"
+    Local $pid = Run('"' & $YT_DLP_PATH & '" --version', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    If @error Then Return "0"
+    ProcessWaitClose($pid)
+    Local $sVer = StdoutRead($pid)
+    Return StringRegExpReplace(StringStripWS($sVer, 3), "[^0-9.]", "")
 EndFunc

@@ -4,6 +4,7 @@ changes for version 1.3
   - completely removed the notification as ToolTip.
   - add anti-scan system from windows security.
   - Now in the media player all notifications will be read through NVDA or sapi5 if NVDA fails.
+  - add comments system to review comments from video.
 - New shortcut:
   - control+t: Read Elapsed Time.
   - Ctrl + Shift + T: Read Total Duration.
@@ -17,6 +18,8 @@ changes for version 1.3
   - S / D / F: Change Speed (Fast / Normal / Slow).
   - (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
   - Ctrl + Shift + E to toggle Cinema Mode (Fullscreen).
+  - ctrl+shift+c: activate comments video.
+  - ctrl+enter: play as audio.
 - new library:
   - nvdaControllerClient64.dll: for computers using 64bit architecture.
   - nvdaControllerClient32.dll: for computers using 32bit architecture.
@@ -35,6 +38,12 @@ changes for version 1.3
 - Automatically download results more smoothly: The application will now automatically download more results when you are 10 items away from the end of the list (instead of 5 as before), helping to prevent list scrolling from stalling.
 - Increased overall performance: I've reduced latency in internal data processing loops (from 10ms to 1ms), making the app more responsive and "responsive" to your actions.
 - Improved accessibility: Combo boxes have been redesigned with clear labels ("Select format (Tab to move)") and hints for screen readers, ensuring NVDA/JAWS users can use them easily and accurately.
+- changed the way it works when rewinding to the end of the video using the end key.
+- Updated the labels to be more screen reader friendly and the messages are clear so users can understand.
+- Reduced wait time between search and play dialogs to speed up the user experience.
+- Rewrote the entire yt-dlp library update system to ensure bugs are specifically addressed.
+- Fixed the software exit bug so that included tools including **Description.exe** and **comments.exe** exit completely to avoid the situation of not being able to replace new files.
+- Now when you update the yt-dlp library, the software will require restart to apply the latest update.
 
 changes for version 1.2
 - new feature:

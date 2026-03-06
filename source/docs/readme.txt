@@ -43,6 +43,9 @@ N: Toggle Auto Next (Recommended Videos).
 Ctrl + W: Exit Application.
 S / D / F: Change Speed (Fast / Normal / Slow).
 (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
+Ctrl + Shift + E to toggle Cinema Mode (Fullscreen).
+ctrl+shift+c: activate comments video.
+ctrl+enter: play as audio.
 context menu
 After pressing enter on the search results, there will be a few more small context menu:
 play: activate play video.
@@ -55,6 +58,7 @@ copy link : you can copy link to paste in editing tools.
 Open in Browser: Open search results in the default browser.
 Add to Favorite: You can add the videos you want to listen to to your favorites list.
 Video description: This section is for reading the video description. You can also export it to a .txt or .html file for reading.
+video comments: Here you can read, copy and export files from all comments in a video you have selected.
 Contact Information:
 If you would like to provide feedback, you can contact me through the following methods:
 Phone: 0366934510
