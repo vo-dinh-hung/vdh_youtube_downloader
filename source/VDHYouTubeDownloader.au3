@@ -340,7 +340,7 @@ Func _ShowDownloader()
                     EndIf
 
                     GUICtrlSetState($btn_start_dl, $GUI_DISABLE)
-                    Local $iPidDL = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & $sExtraArgs & ' -o "download/%(title)s.%(ext)s" "' & $url & '""', @ScriptDir, @SW_SHOW)
+                    Local $iPidDL = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & $sExtraArgs & ' -o "download/%(title)s.%(ext)s" -- "' & $url & '""', @ScriptDir, @SW_SHOW)
                     While ProcessExists($iPidDL)
                         Local $m = GUIGetMsg()
                         If $m = $GUI_EVENT_CLOSE Then
@@ -702,7 +702,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
     EndSwitch
 
     ; Sử dụng --print "TYPE:%(_type)s" để nhận diện chính xác Video hay Playlist
-    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "P:%(playlist_count)s" --print "U:%(uploader)s" --print "V:%(view_count_text)s" --print "DATE:%(upload_date)s" --print "LIVE:%(is_live)s" --print "TYPE:%(_type)s" --print "I:%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 "' & $sSearchTarget & '"'
+    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "P:%(playlist_count)s" --print "U:%(uploader)s" --print "V:%(view_count_text)s" --print "DATE:%(upload_date)s" --print "LIVE:%(is_live)s" --print "TYPE:%(_type)s" --print "I:%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 -- "' & $sSearchTarget & '"'
 
     Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
@@ -958,7 +958,7 @@ Func _Action_ShowDescription($iIndex)
     GUISetBkColor(0xFFFFFF, $hWait)
     GUISetState(@SW_SHOW, $hWait)
 
-    Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+    Local $iPID = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 -- "' & $sID & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
     Local $bData = Binary("")
 
     While ProcessExists($iPID)
@@ -1007,7 +1007,7 @@ Func _Action_GoChannel($iIndex)
     GUISetBkColor(0xFFFFFF, $hLoading)
     GUISetState(@SW_SHOW, $hLoading)
 
-    Local $pid_channel = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --print "https://www.youtube.com/channel/%(channel_id)s" --no-playlist ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $pid_channel = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --print "https://www.youtube.com/channel/%(channel_id)s" --no-playlist -- "' & $sID & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $sChannelUrl = ""
     While ProcessExists($pid_channel)
         $sChannelUrl &= StdoutRead($pid_channel)
@@ -1057,7 +1057,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
 
         Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
         ; Highly optimized yt-dlp call for minimum delay: added --no-mtime, --socket-timeout, --geo-bypass
-        Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 ' & $sID & '"'
+        Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 -- "' & $sID & '""'
         Local $pid_url = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
         Local $sUrl = "", $sErr = ""
         While ProcessExists($pid_url)
@@ -1153,7 +1153,7 @@ Func _ShowDownloadDialog($sID, $sTitle)
                 $sFmt &= " --audio-quality " & $iKbps & "k"
             EndIf
 
-            Local $iPidDLNow = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "download/%(title)s.%(ext)s" "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
+            Local $iPidDLNow = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "download/%(title)s.%(ext)s" -- "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
             While ProcessExists($iPidDLNow)
                 Local $mDL = GUIGetMsg()
                 If $mDL = $GUI_EVENT_CLOSE Then
@@ -1183,7 +1183,7 @@ Func playmedia($url)
         Sleep(1)
     EndIf
 
-    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
+    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "best" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 -- "' & $url & '""'
     Local $pid = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
@@ -1220,7 +1220,7 @@ Func playaudio($url)
         Sleep(1)
     EndIf
 
-    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 "' & $url & '""'
+    Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "bestaudio" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 -- "' & $url & '""'
     Local $pid = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $dlink = "", $sErr = ""
     While ProcessExists($pid)
@@ -1452,7 +1452,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 GUICtrlCreateLabel("Fetching channel information...", 10, 25, 230, 20, $SS_CENTER)
                 GUISetBkColor(0xFFFFFF, $hLoadingTmp)
                 GUISetState(@SW_SHOW, $hLoadingTmp)
-                Local $pid_channel = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --print "https://www.youtube.com/channel/%(channel_id)s" --no-playlist ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+                Local $pid_channel = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --print "https://www.youtube.com/channel/%(channel_id)s" --no-playlist -- "' & $sID & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
                 Local $sChannelUrl = ""
                 While ProcessExists($pid_channel)
                     $sChannelUrl &= StdoutRead($pid_channel)
@@ -1478,7 +1478,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 GUICtrlCreateLabel("Fetching Description...", 10, 25, 230, 20, $SS_CENTER)
                 GUISetBkColor(0xFFFFFF, $hWaitDesc)
                 GUISetState(@SW_SHOW, $hWaitDesc)
-                Local $iPIDDesc = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 ' & $sID & '"', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+                Local $iPIDDesc = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --get-description --no-playlist --encoding utf-8 -- "' & $sID & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
                 Local $bDataDesc = Binary("")
                 While ProcessExists($iPIDDesc)
                     $bDataDesc &= StdoutRead($iPIDDesc, False, True)
@@ -1973,7 +1973,7 @@ Func _GetYoutubeID($url)
 EndFunc
 
 Func _GetYoutubeTitle($url)
-    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --encoding utf-8 --get-title --no-playlist --no-check-certificate -4 "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+    Local $pid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --encoding utf-8 --get-title --no-playlist --no-check-certificate -4 -- "' & $url & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
     Local $bData = Binary("")
     While ProcessExists($pid)
         $bData &= StdoutRead($pid, False, True)
@@ -2985,7 +2985,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
     GUISetState(@SW_SHOW, $hLoad)
 
     ; 2. Tải danh sách video bằng yt-dlp - Đưa I: xuống cuối để đảm bảo T và D đã có trước khi Add
-    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "I:%(id)s" --no-warnings --encoding utf-8 "' & $sPlaylistID & '"'
+    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "I:%(id)s" --no-warnings --encoding utf-8 -- "' & $sPlaylistID & '"'
     Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
 
@@ -3099,4 +3099,3 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
         EndSwitch
     WEnd
 EndFunc
-
