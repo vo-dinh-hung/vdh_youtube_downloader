@@ -48,8 +48,15 @@ changes for version 1.4
   - Fixed an issue where playlists could not be loaded in video viewing history.
   - Now all actions in the filter are working properly.
   - Fixed all errors with control+tab and control+shift+tab keyboard shortcuts.
-  - Added property page to settings so you know where you are.
   - changed the search interface. Now the combo box will appear before the search button.
+  - add Reset to Default button so users can restore all previous changes at will.
+  - Added a voice search system for users who don't like to enter text.
+  - updated the library system to integrate voice search.
+  - Now you can copy the you tube link with the time you have chosen.
+  - Updated new sounds.
+  - Fixed unknown title errors by removing them from the search list.
+  - Fixed some serious bugs.
+  - Now when you press the voice search button there will be a sound telling you where to start speaking and once you finish speaking there will be a stop sound.
 
 changes for version 1.3
 - new feature:

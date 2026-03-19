@@ -25,6 +25,7 @@ Global $YTDLP_version = "2026.02.21"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe" ; Định nghĩa đường dẫn file python exe
 Global $COMMENTS_EXE_PATH = @ScriptDir & "\lib\comments.exe"
+Global $VOICE_SEARCH_EXE_PATH = @ScriptDir & "\lib\voice_search.exe"
 Global $g_hNVDADll = -1 ; Handle cho NVDA DLL
 Global $oVoice = 0 ; Đối tượng SAPI 5 (Lazy init)
 
@@ -60,7 +61,7 @@ Global $g_iOriginalX, $g_iOriginalY, $g_iOriginalW, $g_iOriginalH
 Global $hDummySpace, $hDummyEnter, $hDummyN, $hDummyUp, $hDummyDown, $hDummyLeft, $hDummyRight, $hDummyAltO
 Global $hDummyCtrlLeft, $hDummyCtrlRight, $hDummyCtrlT, $hDummyCtrlShiftT, $hDummyHome, $hDummyEnd
 Global $hDummy1, $hDummy2, $hDummy3, $hDummy4, $hDummy5, $hDummy6, $hDummy7, $hDummy8, $hDummy9
-Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE, $hDummyEsc, $hDummyG, $hDummyApps, $hDummyBracketLeft, $hDummyBracketRight, $hDummyCtrlS, $hDummyCtrlK, $hDummyCtrlShiftC, $hDummyCtrlShiftD, $hDummyAltB, $hDummyAltG
+Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE, $hDummyEsc, $hDummyG, $hDummyApps, $hDummyBracketLeft, $hDummyBracketRight, $hDummyCtrlS, $hDummyCtrlK, $hDummyCtrlC, $hDummyCtrlShiftC, $hDummyCtrlShiftD, $hDummyAltB, $hDummyAltG
 Global $g_sLastReportedText = "", $g_iLastReportedTime = 0
 Global $g_sCurrentVideoTitle = ""
 Global $g_sSearchFilter = "No Filter"
@@ -420,9 +421,11 @@ Func _ShowSearch()
     $btn_search_go = GUICtrlCreateButton("Search (Alt+S)", 320, 10, 70, 25)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
 
+    Local $btn_voice_search = GUICtrlCreateButton("Voice search (Alt+V)", 320, 47, 70, 25)
+
     $btn_search_hist = GUICtrlCreateButton("Search History (Alt+H)", 100, 90, 210, 30)
 
-    Local $aAccelSC[2][2] = [["!s", $btn_search_go], ["!h", $btn_search_hist]]
+    Local $aAccelSC[3][2] = [["!s", $btn_search_go], ["!h", $btn_search_hist], ["!v", $btn_voice_search]]
     GUISetAccelerators($aAccelSC, $hCurrentSubGui)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
@@ -439,6 +442,64 @@ Func _ShowSearch()
                 $hCurrentSubGui = 0
                 GUISetState(@SW_SHOW, $mainform)
                 Return
+            Case $btn_voice_search
+                If FileExists($VOICE_SEARCH_EXE_PATH) Then
+                    GUICtrlSetState($btn_voice_search, $GUI_DISABLE)
+                    _NVDA_Speak("Voice search activated. Please speak clearly into your microphone.")
+                    ; Âm thanh bắt đầu tìm kiếm
+                    SoundPlay(@ScriptDir & "\sounds\start_voice_search.wav")
+
+                    Local $pid = Run(@ComSpec & ' /c ""' & $VOICE_SEARCH_EXE_PATH & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+                    Local $bBinaryOutput = Binary("")
+                    While ProcessExists($pid)
+                        $bBinaryOutput &= StdoutRead($pid, False, True)
+                        Sleep(10)
+                    WEnd
+                    $bBinaryOutput &= StdoutRead($pid, False, True)
+
+                    ; Âm thanh kết thúc tìm kiếm
+                    SoundPlay(@ScriptDir & "\sounds\stop_voice_search.wav")
+
+                    Local $sFullOutput = BinaryToString($bBinaryOutput, 4)
+
+                    ; Common encoding fixes if StdoutRead still catches broken UTF-8 as ANSI
+                    If StringInStr($sFullOutput, "vÃ´ hiá»‡u hÃ³a") Then
+                        $sFullOutput = StringReplace($sFullOutput, "vÃ´ hiá»‡u hÃ³a", "vô hiệu hóa")
+                    EndIf
+
+                    Local $sResult = ""
+                    Local $sError = ""
+                    Local $aLines = StringSplit(StringReplace($sFullOutput, @CR, ""), @LF)
+                    For $i = 1 To $aLines[0]
+                        Local $sLine = StringStripWS($aLines[$i], 3)
+                        If $sLine == "" Then ContinueLoop
+                        If StringInStr($sLine, "ERROR:") Then
+                            $sError = StringStripWS(StringReplace($sLine, "ERROR:", ""), 3)
+                        ElseIf Not StringInStr($sLine, "INFO:") And Not StringInStr($sLine, "LISTENING") And Not StringInStr($sLine, "RECOGNIZING") Then
+                            $sResult = $sLine
+                        EndIf
+                    Next
+
+                    If $sError <> "" Then
+                        Local $sTranslatedError = $sError
+                        If StringInStr($sError, "Could not understand audio") Then
+                            $sTranslatedError = "Could not recognize speech. Please speak more clearly or check your microphone."
+                        ElseIf StringInStr($sError, "check your microphone") Then
+                            $sTranslatedError = "Microphone connection error. Please check your recording device."
+                        EndIf
+                        _NVDA_Speak("Voice search error: " & $sTranslatedError)
+                        MsgBox(16, "Voice Search Error", $sTranslatedError)
+                    ElseIf $sResult <> "" Then
+                        GUICtrlSetData($inp_search, $sResult)
+                        ControlFocus($hCurrentSubGui, "", $inp_search)
+                        _NVDA_Speak("Voice input received: " & $sResult)
+                    Else
+                        _NVDA_Speak("Voice search did not recognize any speech.")
+                    EndIf
+                    GUICtrlSetState($btn_voice_search, $GUI_ENABLE)
+                Else
+                    MsgBox(16, "Error", "voice_search.exe not found in lib folder!")
+                EndIf
 
             Case $btn_search_go
                 $sCurrentKeyword = GUICtrlRead($inp_search)
@@ -701,8 +762,8 @@ Func _SearchYouTube($sKeyword, $bAppend)
             $sSearchTarget = "ytsearch" & $iEnd & ":" & $sKeyword
     EndSwitch
 
-    ; Sử dụng --print "TYPE:%(_type)s" để nhận diện chính xác Video hay Playlist
-    Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "P:%(playlist_count)s" --print "U:%(uploader)s" --print "V:%(view_count_text)s" --print "DATE:%(upload_date)s" --print "LIVE:%(is_live)s" --print "TYPE:%(_type)s" --print "I:%(id)s" --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 -- "' & $sSearchTarget & '"'
+    ; Use JSON output to ensure all video metadata stays together
+    Local $sParams = '--flat-playlist --print-json --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 -- "' & $sSearchTarget & '"'
 
     Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
@@ -747,34 +808,27 @@ Func _SearchYouTube($sKeyword, $bAppend)
             Local $sLine = StringStripWS($aLines[$i], 3)
             If $sLine = "" Then ContinueLoop
 
-            If StringLeft($sLine, 2) = "T:" Then
-                $sCurrentTitle = StringTrimLeft($sLine, 2)
-            ElseIf StringLeft($sLine, 2) = "I:" Then
-                $sCurrentId = StringTrimLeft($sLine, 2)
-            ElseIf StringLeft($sLine, 2) = "D:" Then
-                $sCurrentDur = StringTrimLeft($sLine, 2)
-                If $sCurrentDur == "NA" Then $sCurrentDur = ""
-            ElseIf StringLeft($sLine, 2) = "P:" Then
-                Local $sCount = StringTrimLeft($sLine, 2)
-                If $sCount <> "" And $sCount <> "NA" Then 
-                    $sCurrentDur = $sCount & " items"
-                    $sCurrentType = "playlist"
-                EndIf
-            ElseIf StringLeft($sLine, 2) = "U:" Then
-                $sCurrentUp = StringTrimLeft($sLine, 2)
-            ElseIf StringLeft($sLine, 2) = "V:" Then
-                $sCurrentViews = StringTrimLeft($sLine, 2)
-            ElseIf StringLeft($sLine, 5) = "DATE:" Then
-                $sCurrentDate = StringTrimLeft($sLine, 5)
-            ElseIf StringLeft($sLine, 5) = "LIVE:" Then
-                $sCurrentLive = StringTrimLeft($sLine, 5)
-            ElseIf StringLeft($sLine, 5) = "TYPE:" Then
-                Local $sT = StringLower(StringTrimLeft($sLine, 5))
-                If StringInStr($sT, "playlist") Or StringInStr($sT, "multi_video") Then $sCurrentType = "playlist"
-            EndIf
+            ; Simple but effective JSON extraction for ID, Title and Duration
+            Local $sIdMatch = StringRegExp($sLine, '"id":\s*"([^"]+)"', 3)
+            Local $sTitleMatch = StringRegExp($sLine, '"title":\s*"([^"]+)"', 3)
+            Local $sDurMatch = StringRegExp($sLine, '"duration_string":\s*"([^"]+)"', 3)
+            Local $sUploaderMatch = StringRegExp($sLine, '"uploader":\s*"([^"]+)"', 3)
+            Local $sViewMatch = StringRegExp($sLine, '"view_count_text":\s*"([^"]+)"', 3)
+            Local $sDateMatch = StringRegExp($sLine, '"upload_date":\s*"([^"]+)"', 3)
+            Local $sLiveMatch = StringInStr($sLine, '"is_live": true')
+            Local $sTypeMatch = StringRegExp($sLine, '"_type":\s*"([^"]+)"', 3)
 
-            ; Trigger khi có ID (vì ID in cuối cùng)
-            If $sCurrentId <> "" Then
+            If IsArray($sIdMatch) And IsArray($sTitleMatch) Then
+                $sCurrentId = $sIdMatch[0]
+                $sCurrentTitle = _UnescapeJSON($sTitleMatch[0])
+
+                If IsArray($sDurMatch) Then $sCurrentDur = $sDurMatch[0]
+                If IsArray($sUploaderMatch) Then $sCurrentUp = _UnescapeJSON($sUploaderMatch[0])
+                If IsArray($sViewMatch) Then $sCurrentViews = $sViewMatch[0]
+                If IsArray($sDateMatch) Then $sCurrentDate = $sDateMatch[0]
+                If IsArray($sTypeMatch) Then $sCurrentType = $sTypeMatch[0]
+
+                If $sLiveMatch Then $sCurrentLive = "True"
                 ; Tự động nhận diện Playlist dựa trên ID nếu các cách trên thất bại
                 If $sCurrentType <> "playlist" Then
                     If StringLen($sCurrentId) > 11 Or StringLeft($sCurrentId, 2) = "PL" Or StringLeft($sCurrentId, 2) = "RD" Or StringLeft($sCurrentId, 2) = "OL" Then
@@ -783,11 +837,12 @@ Func _SearchYouTube($sKeyword, $bAppend)
                 EndIf
 
                 $iTotalLoaded += 1
-                Local $sDisplay = ($sCurrentTitle <> "" ? $sCurrentTitle : "Unknown Title")
-                
+                If $sCurrentTitle == "" Or $sCurrentTitle == "NA" Then ContinueLoop ; Skip unknown titles
+                Local $sDisplay = $sCurrentTitle
+
                 If $sCurrentLive == "True" Then $sDisplay = "[LIVE] " & $sDisplay
                 If $sCurrentDur <> "" And $sCurrentDur <> "NA" Then $sDisplay &= " [" & $sCurrentDur & "]"
-                
+
                 If $g_sSearchFilter == "upload date" And $sCurrentDate <> "" And $sCurrentDate <> "NA" Then
                     ; Format YYYYMMDD to DD/MM/YYYY for display
                     Local $sFormattedDate = $sCurrentDate
@@ -796,13 +851,13 @@ Func _SearchYouTube($sKeyword, $bAppend)
                     EndIf
                     $sDisplay &= " (" & $sFormattedDate & ")"
                 EndIf
-                
+
                 If $g_sSearchFilter == "Most viewed" And $sCurrentViews <> "" And $sCurrentViews <> "NA" Then
                     $sDisplay &= " - " & $sCurrentViews
                 EndIf
-                
+
                 If $sCurrentUp <> "" And $sCurrentUp <> "NA" Then $sDisplay &= " - " & $sCurrentUp
-                
+
                 _GUICtrlListBox_AddString($lst_results, $sDisplay)
 
                 $aSearchIds[$iCount] = $sCurrentId
@@ -810,7 +865,6 @@ Func _SearchYouTube($sKeyword, $bAppend)
                 $aSearchTypes[$iCount] = $sCurrentType ; Lưu loại kết quả chính xác
 
                 $iCount += 1
-                $sCurrentTitle = "" : $sCurrentId = "" : $sCurrentDur = "" : $sCurrentUp = "" : $sCurrentType = $sDefaultType
             EndIf
         Next
 
@@ -1055,9 +1109,10 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
         Sleep(1)
         EndIf
 
-        Local $sFormat = $bAudioOnly ? "bestaudio" : "best[ext=mp4]/best"
-        ; Highly optimized yt-dlp call for minimum delay: added --no-mtime, --socket-timeout, --geo-bypass
-        Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" -g -f "' & $sFormat & '" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 5 --geo-bypass --encoding utf-8 -4 -- "' & $sID & '""'
+        Local $sFormat = $bAudioOnly ? "bestaudio/best" : "best[ext=mp4]/best"
+        ; Sửa lỗi 153: Chuyển hẳn sang client Android/iOS để tránh bị YouTube quét bot trên nền tảng Web
+        Local $sParams = '-g -f "' & $sFormat & '" --no-playlist --no-check-certificate --no-warnings --no-mtime --socket-timeout 10 --geo-bypass --extractor-args "youtube:player-client=android,ios" --encoding utf-8'
+        Local $sCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & ' -- "' & $sID & '""'
         Local $pid_url = Run($sCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
         Local $sUrl = "", $sErr = ""
         While ProcessExists($pid_url)
@@ -1071,18 +1126,20 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
         $sUrl = StringStripWS($sUrl, 3)
 
         If $sUrl = "" Then
-            GUIDelete($hLoading)
-            Local $sErrMsg = "Cannot get stream URL."
-            If StringInStr($sErr, "age restricted") Then
-                $sErrMsg &= " This video is age-restricted."
-            ElseIf StringInStr($sErr, "private") Then
-                $sErrMsg &= " This video is private."
-            ElseIf StringInStr($sErr, "not available") Then
-                $sErrMsg &= " This video is not available."
-            ElseIf $sErr <> "" Then
-                $sErrMsg &= " Details: " & StringLeft(StringStripWS($sErr, 3), 100)
+            ; Nếu lỗi, thử xóa cache yt-dlp một lần rồi báo lỗi chi tiết
+            RunWait(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --rm-cache-dir"', @ScriptDir, @SW_HIDE)
+
+            If IsHWnd($hLoading) Then GUIDelete($hLoading)
+            Local $sErrMsg = "Lỗi 153: YouTube đã chặn yêu cầu trích xuất link."
+            If StringInStr($sErr, "sign in") Or StringInStr($sErr, "confirm you are not a bot") Then
+                $sErrMsg &= " YouTube yêu cầu xác minh người dùng."
+            ElseIf StringInStr($sErr, "age restricted") Then
+                $sErrMsg &= " Video bị giới hạn độ tuổi."
+            Else
+                $sErrMsg &= " (Cảnh báo: YouTube đang quét Bot, hãy thử lại sau vài phút)."
             EndIf
-            MsgBox(16, "Error", $sErrMsg)
+            _NVDA_Speak($sErrMsg)
+            MsgBox(16, "Error", $sErrMsg & @CRLF & @CRLF & "Mẹo: Hãy thử mở video khác hoặc khởi động lại modem mạng để đổi IP.")
             ExitLoop
         EndIf
 
@@ -1265,12 +1322,12 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $menu_item_copy = GUICtrlCreateMenuItem("Copy &Link...", $hMenu_Options)
         $menu_item_desc = GUICtrlCreateMenuItem("&Video Description...", $hMenu_Options)
         $menu_item_comments = GUICtrlCreateMenuItem("Video Com&ments...", $hMenu_Options)
-        
+
         Local $sFavText = _IsFavorite($sID) ? "&Remove from Favorite..." : "Add to &Favorite..."
         $menu_item_fav = GUICtrlCreateMenuItem($sFavText, $hMenu_Options)
-        
+
         $menu_item_goto = GUICtrlCreateMenuItem("Go to &Time... (Ctrl+G)", $hMenu_Options)
-        
+
         ; Vẽ lại thanh menu để đảm bảo hiển thị
         _GUICtrlMenu_DrawMenuBar($hPlayGui)
 
@@ -1339,7 +1396,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $hDummyG = GUICtrlCreateDummy()
         $hDummyApps = GUICtrlCreateDummy()
         $hDummyAltO = GUICtrlCreateDummy() ; Vẫn giữ Dummy nhưng không dùng accelerator để tránh loop
-        
+
         $hDummyAltB = GUICtrlCreateDummy() ; Alt+B: Open Browser
         $hDummyAltG = GUICtrlCreateDummy() ; Alt+G: Go Channel
 
@@ -1348,12 +1405,13 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $hDummyBracketRight = GUICtrlCreateDummy()
         $hDummyCtrlS = GUICtrlCreateDummy()
         $hDummyCtrlK = GUICtrlCreateDummy()
+        $hDummyCtrlC = GUICtrlCreateDummy()
         $hDummyCtrlShiftC = GUICtrlCreateDummy()
         $hDummyCtrlShiftD = GUICtrlCreateDummy() ; Ctrl+Shift+D: Description
 
         ; Lưu ý: Xóa !o khỏi Accelerator để Windows tự xử lý menu tiêu chuẩn &Options
         ; Khôi phục lại phím tắt đơn theo yêu cầu người dùng
-        Local $aAccelPlay[43][2] = [ _
+        Local $aAccelPlay[44][2] = [ _
             ["{SPACE}", $hDummySpace], _
             ["n", $hDummyN], _ ; Next
             ["r", $hDummyR], _ ; Repeat
@@ -1391,10 +1449,11 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
             ["+{F10}", $hDummyApps], _
             ["!b", $hDummyAltB], _
             ["!g", $hDummyAltG], _
-            ["[", $hDummyBracketLeft], _
-            ["]", $hDummyBracketRight], _
+            ["{[}", $hDummyBracketLeft], _
+            ["{]}", $hDummyBracketRight], _
             ["^s", $hDummyCtrlS], _
             ["^k", $hDummyCtrlK], _
+            ["^c", $hDummyCtrlC], _
             ["^+c", $hDummyCtrlShiftC], _
             ["^+d", $hDummyCtrlShiftD] _
         ]
@@ -1521,26 +1580,53 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 ClipPut("https://www.youtube.com/watch?v=" & $sID)
                 _ReportStatus("Link copied to clipboard")
 
+            Case $hDummyCtrlC
+                Local $sCleanID = StringStripWS($sID, 3)
+                Local $sFinalLink = ""
+                Local $fPos = $oWMP.controls.currentPosition
+                If $fPos <= 0 Then $fPos = $oWMP.currentPosition
+
+                ; Nếu chưa đặt điểm [ thì tự động lấy thời gian hiện tại
+                Local $iStart = ($g_fSelectionStart <> -1) ? Int($g_fSelectionStart) : Int($fPos)
+
+                If $g_fSelectionEnd <> -1 Then
+                    Local $iEnd = Int($g_fSelectionEnd)
+                    ; Đảo ngược nếu điểm kết thúc nhỏ hơn điểm bắt đầu
+                    If $iEnd < $iStart Then
+                        Local $tmp = $iStart
+                        $iStart = $iEnd
+                        $iEnd = $tmp
+                    EndIf
+                    ; Tạo link đoạn (Range). Sử dụng link embed để trình duyệt tự động dừng ở điểm kết thúc.
+                    $sFinalLink = "https://www.youtube.com/embed/" & $sCleanID & "?start=" & $iStart & "&end=" & $iEnd & "&autoplay=1"
+                    _ReportStatus("Range link (Embed) copied: " & _FormatTime($iStart) & " to " & _FormatTime($iEnd))
+                Else
+                    ; Nếu không có điểm kết thúc, tạo link tại mốc thời gian bắt đầu
+                    $sFinalLink = "https://www.youtube.com/watch?v=" & $sCleanID & "&t=" & $iStart & "s"
+                    If $g_fSelectionStart <> -1 Then
+                        _ReportStatus("Link from start point copied: " & _FormatTime($iStart))
+                    Else
+                        _ReportStatus("Current time link copied: " & _FormatTime($iStart))
+                    EndIf
+                EndIf
+
+                ClipPut($sFinalLink)
+
             Case $hDummyCtrlShiftC
                 Run('"' & $COMMENTS_EXE_PATH & '" "https://www.youtube.com/watch?v=' & $sID & '"')
 
             Case $hDummyBracketLeft
-                If $oWMP.playState = 2 Then ; Paused
-                    $g_fSelectionStart = -1
-                    _ReportStatus("Start selection cleared.")
-                Else
-                    $g_fSelectionStart = $oWMP.controls.currentPosition
-                    _ReportStatus("Start selection: " & _FormatTime($g_fSelectionStart))
-                EndIf
+                ; Lấy vị trí hiện tại
+                Local $fPos = $oWMP.controls.currentPosition
+                If $fPos <= 0 Then $fPos = $oWMP.currentPosition
+                $g_fSelectionStart = $fPos
+                _ReportStatus("Start selection: " & _FormatTime($g_fSelectionStart))
 
             Case $hDummyBracketRight
-                If $oWMP.playState = 2 Then ; Paused
-                    $g_fSelectionEnd = -1
-                    _ReportStatus("End selection cleared.")
-                Else
-                    $g_fSelectionEnd = $oWMP.controls.currentPosition
-                    _ReportStatus("End selection: " & _FormatTime($g_fSelectionEnd))
-                EndIf
+                Local $fPos = $oWMP.controls.currentPosition
+                If $fPos <= 0 Then $fPos = $oWMP.currentPosition
+                $g_fSelectionEnd = $fPos
+                _ReportStatus("End selection: " & _FormatTime($g_fSelectionEnd))
 
             Case $hDummyCtrlS
                 If $g_fSelectionStart = -1 Or $g_fSelectionEnd = -1 Then
@@ -1727,7 +1813,7 @@ EndFunc
 Func _SaveSelection($sUrl, $sTitle)
     Local $fStart = $g_fSelectionStart
     Local $fEnd = $g_fSelectionEnd
-    
+
     If $fStart = -1 Or $fEnd = -1 Then
         _ReportStatus("Error: Please set both start [ and end ] points.")
         Return
@@ -1739,7 +1825,7 @@ Func _SaveSelection($sUrl, $sTitle)
         $fEnd = $tmp
         _ReportStatus("Start/End swapped to match timeline.")
     EndIf
-    
+
     Local $fDuration = $fEnd - $fStart
     If $fDuration <= 0 Then
         _ReportStatus("Invalid selection duration.")
@@ -1747,18 +1833,18 @@ Func _SaveSelection($sUrl, $sTitle)
     EndIf
 
     Local $sSafeTitle = StringRegExpReplace($sTitle, '[\\/:*?"<>|]', '_')
-    
+
     ; Redesigned Save Selection: Use FileSaveDialog to let user choose name, type and path
     Local $sFilter = "MP3 Audio (*.mp3)|M4A Audio (*.m4a)|WAV Audio (*.wav)|FLAC Audio (*.flac)|All Files (*.*)"
     Local $sInitialDir = @ScriptDir & "\download"
     If Not FileExists($sInitialDir) Then DirCreate($sInitialDir)
-    
+
     Local $sFilePath = FileSaveDialog("Save selection as...", $sInitialDir, $sFilter, 18, $sSafeTitle & "_selection.mp3")
-    If @error Then 
+    If @error Then
         _ReportStatus("Save cancelled.")
         Return
     EndIf
-    
+
     ; Ensure correct extension if user didn't type it
     ; We check the filter index or just look at the filename
     Local $sAudioCodec = "-c:a libmp3lame -q:a 2" ; Default MP3
@@ -1774,17 +1860,17 @@ Func _SaveSelection($sUrl, $sTitle)
     EndIf
 
     _ReportStatus("Saving selection... Please wait.")
-    
+
     Local $sFFmpeg = @ScriptDir & "\lib\ffmpeg.exe"
     If Not FileExists($sFFmpeg) Then
         MsgBox(16, "Error", "ffmpeg.exe not found in lib folder!")
         Return
     EndIf
-    
+
     ; ffmpeg command with dynamic codec selection
     Local $sCmd = '"' & $sFFmpeg & '" -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 -ss ' & $fStart & ' -to ' & $fEnd & ' -i "' & $sUrl & '" -vn ' & $sAudioCodec & ' -y "' & $sFilePath & '"'
     Local $iPid = Run($sCmd, @ScriptDir, @SW_HIDE)
-    
+
     Local $iBeginWait = TimerInit()
     While ProcessExists($iPid)
         Sleep(10)
@@ -1794,7 +1880,7 @@ Func _SaveSelection($sUrl, $sTitle)
             ExitLoop
         EndIf
     WEnd
-    
+
     If FileExists($sFilePath) And FileGetSize($sFilePath) > 1000 Then
         _ReportStatus("Selection saved successfully.")
         MsgBox(64, "Success", "Selection saved successfully as:" & @CRLF & $sFilePath)
@@ -2204,9 +2290,9 @@ Func _ShowHistory()
     $hHistoryGui = GUICreate("Watch History", 400, 480)
     GUISetBkColor($COLOR_BLUE)
     $lst_results = GUICtrlCreateList("", 10, 10, 380, 350, BitOR($LBS_NOTIFY, $WS_VSCROLL, $WS_BORDER))
-    
+
     Local $btn_clear_all = GUICtrlCreateButton("Clear all history", 10, 370, 380, 30)
-    Local $btn_go_back = GUICtrlCreateButton("Go back", 10, 410, 380, 30)
+    Local $btn_go_back = GUICtrlCreateButton("Go back (Alt+B)", 10, 410, 380, 30)
 
     Local $dummy_copy = GUICtrlCreateDummy()
     Local $dummy_browser = GUICtrlCreateDummy()
@@ -2217,16 +2303,17 @@ Func _ShowHistory()
     Local $hDummyHomeHist = GUICtrlCreateDummy()
     Local $hDummyEndHist = GUICtrlCreateDummy()
     Local $hDummyEscHist = GUICtrlCreateDummy()
-    Local $aAccel[9][2] = [ _
+    Local $aAccel[10][2] = [ _
         ["^k", $dummy_copy], _
-        ["!b", $dummy_browser], _
+        ["!b", $btn_go_back], _ ; Alt+B linked directly to button
         ["!g", $dummy_channel], _
         ["^{ENTER}", $hDummyAudioHist], _
         ["^+c", $hDummyCommentsFav], _
         ["{ENTER}", $hDummyEnterHist], _
         ["{HOME}", $hDummyHomeHist], _
         ["{END}", $hDummyEndHist], _
-        ["{ESC}", $hDummyEscHist] _
+        ["{ESC}", $hDummyEscHist], _
+        ["!b", $btn_go_back] _
     ]
     GUISetAccelerators($aAccel, $hHistoryGui)
 
@@ -2240,8 +2327,9 @@ Func _ShowHistory()
         Local $nMsg = GUIGetMsg()
 
         Switch $nMsg
-            Case $GUI_EVENT_CLOSE, $btn_go_back
+            Case $GUI_EVENT_CLOSE, $btn_go_back, $hDummyEscHist
                 GUIDelete($hHistoryGui)
+                $hHistoryGui = 0
                 GUISetState(@SW_SHOW, $mainform)
                 Return
             Case $hDummyEnterHist
@@ -2674,7 +2762,7 @@ Func _ShowSettings()
     GUISetFont(9, 400, 0, "Segoe UI")
 
     $g_hSettingsTab = GUICtrlCreateTab(10, 10, 430, 350)
-    
+
     $g_hSettingsDummyNext = GUICtrlCreateDummy()
     $g_hSettingsDummyPrev = GUICtrlCreateDummy()
     ; Accelerators are often blocked by child controls, so we also use HotKeySet below.
@@ -2750,10 +2838,10 @@ Func _ShowSettings()
     Local $btn_Cancel = GUICtrlCreateButton("Cancel", 230, 380, 100, 35)
 
     GUISetState(@SW_SHOW, $g_hSettingsGui)
-    
+
     ; Register WM_ACTIVATE to handle hotkeys only when window is active
     GUIRegisterMsg($WM_ACTIVATE, "_Settings_WM_ACTIVATE")
-    
+
     ; Initial activation
     _Settings_ToggleHotKeys(True)
 
@@ -2784,13 +2872,13 @@ Func _ShowSettings()
                 Local $sSavePath = FileSaveDialog("Select backup location", @DesktopDir, "Zip Archive (*.zip)", 2, "VDH_Config_Backup.zip")
                 If Not @error Then
                     If StringRight($sSavePath, 4) <> ".zip" Then $sSavePath &= ".zip"
-                    
+
                     ; Use PowerShell to zip the entire SETTINGS_DIR
                     Local $sPSCmd = 'powershell -Command "Compress-Archive -Path ''' & $SETTINGS_DIR & '\*''' & ' -DestinationPath ''' & $sSavePath & ''' -Force"'
                     GUISetCursor(15, 1, $g_hSettingsGui)
                     RunWait($sPSCmd, "", @SW_HIDE)
                     GUISetCursor(2, 0, $g_hSettingsGui)
-                    
+
                     If FileExists($sSavePath) Then
                         MsgBox(64, "Backup Completed", "The configuration backup has been created successfully at:" & @CRLF & $sSavePath)
                     Else
@@ -2823,7 +2911,7 @@ Func _ShowSettings()
                 $g_bSkipSilence = (GUICtrlRead($chk_SkipSilence) = $GUI_CHECKED)
                 $g_bSpeakStatus = (GUICtrlRead($chk_SpeakStatus) = $GUI_CHECKED)
                 $g_iAfterVideoAction = _GUICtrlComboBox_GetCurSel($cbo_AfterAction)
-                
+
                 $g_iFFStep = Int(GUICtrlRead($inp_FFStep))
                 $g_iRWStep = Int(GUICtrlRead($inp_RWStep))
                 If $g_iFFStep < 1 Then $g_iFFStep = 1
@@ -2898,12 +2986,12 @@ Func _ShowGoToTime()
     _AllowUIPI($hGoToTimeGui)
     _AllowUIPI($inpMin)
     _AllowUIPI($inpSec)
-    
+
     ; Set initial values once
     Local $iCurPos = Int($oWMP.controls.currentPosition)
     GUICtrlSetData($inpMin, Int($iCurPos / 60))
     GUICtrlSetData($inpSec, Mod($iCurPos, 60))
-    
+
     ControlFocus($hGoToTimeGui, "", $inpMin)
     GUICtrlSendMsg($inpMin, 0x00B1, 0, -1) ; EM_SETSEL
 
@@ -2930,10 +3018,10 @@ EndFunc
 Func _ShowPlayerContextMenu()
     Local $hMenu = _GUICtrlMenu_CreatePopup()
     _GUICtrlMenu_AddMenuItem($hMenu, "Go to &Time... (Ctrl+G)", 1001)
-    
+
     Local $iCmd = _GUICtrlMenu_TrackPopupMenu($hMenu, $hPlayGui, MouseGetPos(0), MouseGetPos(1), 1, 1, 2)
     _GUICtrlMenu_DestroyMenu($hMenu)
-    
+
     If $iCmd = 1001 Then _ShowGoToTime()
 EndFunc
 
@@ -2998,7 +3086,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
     WEnd
     $bData &= StdoutRead($iPID, False, True)
     $sErr &= StderrRead($iPID)
-    
+
     Local $sOutput = BinaryToString($bData, 4)
     GUIDelete($hLoad)
 
@@ -3023,7 +3111,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
     For $i = 1 To $aLines[0]
         Local $sLine = StringStripWS($aLines[$i], 3)
         If $sLine == "" Then ContinueLoop
-        
+
         If StringLeft($sLine, 2) = "T:" Then
             $sCurrentT = StringTrimLeft($sLine, 2)
         ElseIf StringLeft($sLine, 2) = "I:" Then
@@ -3035,19 +3123,18 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
         ; Trigger khi có ID (vì ID in cuối cùng)
         If $sCurrentI <> "" Then
             $iPlCount += 1
-            Local $sDisp = $iPlCount & ". " & ($sCurrentT <> "" ? $sCurrentT : "Unknown Title")
+            Local $sDisp = $iPlCount & ". " & ($sCurrentT <> "" And $sCurrentT <> "NA" ? $sCurrentT : "Unknown Title")
             If $sCurrentD <> "" And $sCurrentD <> "NA" Then $sDisp &= " [" & $sCurrentD & "]"
             _GUICtrlListBox_AddString($lst_pl, $sDisp)
-            
+
             ReDim $aPlIds[$iPlCount + 1]
             ReDim $aPlTitles[$iPlCount + 1]
             ReDim $aPlTypes[$iPlCount + 1]
-            
+
             $aPlIds[$iPlCount] = $sCurrentI
             $aPlTitles[$iPlCount] = $sCurrentT
             $aPlTypes[$iPlCount] = "video"
-            
-            $sCurrentT = "" : $sCurrentI = "" : $sCurrentD = ""
+
         EndIf
     Next
 
@@ -3076,7 +3163,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
                 Local $iIndex = _GUICtrlListBox_GetCurSel($lst_pl)
                 If $iIndex <> -1 Then
                     Local $bAudio = ($nMsg = $hDummyAudioPl)
-                    
+
                     ; Tạm thời copy các mảng kết quả tìm kiếm để _PlayLoop hoạt động
                     Local $aSavedIds = $aSearchIds
                     Local $aSavedTitles = $aSearchTitles
@@ -3099,3 +3186,19 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
         EndSwitch
     WEnd
 EndFunc
+
+Func _UnescapeJSON($sText)
+    $sText = StringReplace($sText, '\"', '"')
+    $sText = StringReplace($sText, '\/', '/')
+    $sText = StringReplace($sText, '\u0026', '&')
+
+    Local $aMatch = StringRegExp($sText, "\\u([0-9a-fA-F]{4})", 3)
+    If IsArray($aMatch) Then
+        For $i = 0 To UBound($aMatch) - 1
+            Local $sUnicode = "\u" & $aMatch[$i]
+            $sText = StringReplace($sText, $sUnicode, ChrW(Dec($aMatch[$i])))
+        Next
+    EndIf
+    Return $sText
+EndFunc
+
