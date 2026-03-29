@@ -21,12 +21,19 @@ In the main interface of the software, you can press the Alt key to open the hel
 
 We have designed a help menu where you can find every valuable information
 
-- exit: you can exit the Program or press alt+f4 to close application.
 - about: reading information (app_name, version v.v).
 - readme: Read the software instructions.
 - contact: Contribute ideas for software development.
 - checked for Updates: Allows users to check for software updates when new versions are available.
 - Checked Updates yt_dlp: Automatically check for updates to the yt dlp library when new versions are available.
+- visit website: You can visit to know more about this project.
+
+### main menu
+
+There are a few small options for your easy access:
+
+- exit: you can exit the Program or press alt+f4 to close application.
+- settings: In this section there will be a few options for you to configure according to your preferences.
 
 ### main shortcut:
 
@@ -64,6 +71,8 @@ We have assigned keyboard shortcuts for you to easily use the software and be fl
   - alt+o: go to option menu (Use only in music player).
   - control+s: Save selection as.
   - control+shift+d: Video Description...
+  - control+c: Copy the youtube link with the selected time.
+  - alt+w: watch history.
 
 ### settings
 
@@ -96,6 +105,14 @@ In this tab there will be a few options related to configuration data:
 
 - Backup Configuration.
 - Restore Configuration.
+
+## download tab:
+
+In this tab you can customize some actions:
+
+- download pass edit box read only.
+- change pass button.
+- reset pass to default button.
 
 ### option menu
 

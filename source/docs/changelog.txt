@@ -1,3 +1,35 @@
+changes for version 1.5
+- new feature:
+  - Now you can share videos to your closest friends. Currently we are supporting sharing via:
+        - telegram
+        - facebook
+  - converted settings configuration storage structure. In the file there will be variables:
+        - true: checked box checked
+        - false: checked box not checked
+  - added download tab to settings.
+  - Now users can customize the download path as they wish without limitation.
+  - added Shorts option in search filter.
+  - changed history view shortcut to alt+w.
+  - Implemented the case of not being able to connect to the internet when searching by voice.
+  - Now you can follow our project by accessing the help menu and visiting our official website.
+  - about had been updated.
+  - Added support for .ogg format.
+  - New features are available: **Choose custom output filename composition**. When selected there will be one combo box Choose output name composition:
+        - No numbering
+        - No nombering and create subdirectory
+        - Numbering
+        - Numbering and create subdirectory
+  - added channel filter to filter combo box.
+  - Now you can search any YouTube channel and listen to all the videos on that channel.
+  - add new sounds to checked for update yt-dlp.
+- fix bug:
+  - Fixed auto-update calling when the user doesn't enable it in settings.
+  - Removed some redundant notifications in the voice search system.
+  - Fixed an issue where the path was not saved correctly when the user downloaded it.
+  - Optimized the download options interface.
+  - Upgraded voice search engine.
+  - update new sound.
+
 changes for version 1.4
 - new feature:
   - add main menu

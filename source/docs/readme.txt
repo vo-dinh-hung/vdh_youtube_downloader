@@ -18,6 +18,7 @@ readme: Read the software instructions.
 contact: Contribute ideas for software development.
 Checked for Updates: Allows users to check for software updates when new versions are available.
 Checked for Updates yt_dlp: Automatically check for updates to the yt dlp library when new versions are available.
+visit website: You can visit to know more about this project.
 main menu
 There are a few small options for your easy access:
 exit: you can exit the Program or press alt+f4 to close application.
@@ -46,7 +47,7 @@ N: Toggle Auto Next (Recommended Videos).
 Ctrl + W: Exit Application.
 S / D / F: Change Speed (Fast / Normal / Slow).
 (Minus) / = (Equal): Decrease / Increase the seek step (seconds jumped by arrows).
-Ctrl + Shift + E to toggle Cinema Mode (Fullscreen).
+Ctrl + Shift + E: to toggle Cinema Mode (Fullscreen).
 ctrl+shift+c: activate comments video.
 ctrl+enter: play as audio.
 control+shift+s: activate settings
@@ -57,6 +58,7 @@ alt+o: go to option menu (Use only in music player).
 control+s: Save selection as.
 control+shift+d: Video Description...
 control+c: Copy the youtube link with the selected time.
+alt+w: watch history
 option menu:
 you can access in music player.
 play: activate play video.
@@ -92,6 +94,11 @@ Data  tab
 In this tab there will be a few options related to configuration data:
 Backup Configuration.
 Restore Configuration.
+download tab:
+In this tab you can customize some actions:
+download pass edit box read only.
+change pass button.
+reset pass to default button.
 Contact Information:
 If you would like to provide feedback, you can contact me through the following methods:
 Phone: 0366934510
