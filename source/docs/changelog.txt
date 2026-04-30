@@ -1,3 +1,38 @@
+changes for version 1.6
+- new feature:
+  - completely removed the 'Speak player status notifications' feature to simplify the interface and reduce redundant notifications.
+  - context menu had been return. you can truy with application or shift+f10.
+  - Added a time-out system that allows you to set a timer if you step away from your computer or fall asleep in your cubicle.
+  - redesigned download from link button:
+        - Supported downloading videos from services outside YouTube.
+        - divided into tabs for you to easily choose.
+        - you can navigate using the keyboard shortcuts **control+tab** and **control+shift+tab**.
+  - added a warning when users run the software from the second time.
+  - Switched to VLC for better video viewing experience.
+  - Added collection.
+  - new sounds for update yt-dlp system.
+  - update some label.
+  - Now when you watch a video the software will automatically get the resolution for you.
+  - add Select device when listening to music (Thanks vodinhhoang for your support).
+  - add Automatically search after voice input.
+  - Changed the operating mechanism of the silent feature when watching videos. now when you enable this option every change will take effect.
+  - You can see the % by pressing p while listening to music.
+  - added shuffle action for collections of 2 or more videos.
+  - Now you can add videos to the collection right in the music player and delete it if you want.
+  - We've completely redesigned the update download dialog so you can see the changelog of the version you're about to download.
+  - Added an option so users can choose between rewinding with the volume not read or reading a percentage while rewinding or Speak Percentage and Time.
+  - The play/pause will now not be read when the absolute silence option is enabled while listening to music.
+
+- fix bug:
+  - Fixed automatic update checking.
+  - Fixed redundancies in notifications when rewinding.
+  - Fixed a bug that caused the app to crash.
+  - Fixed an error when saving the selected video in a filename with some redundant characters.
+  - Fixed incorrect reading when viewing total and elapsed time.
+  - Fixed an unknown error when tapping a collection with multiple videos.
+  - Fixed an issue where videos could not be added to the collection because of limited data.
+  - Fixed collection actions not updating properly in a few menus.
+
 changes for version 1.5
 - new feature:
   - Now you can share videos to your closest friends. Currently we are supporting sharing via:
@@ -42,7 +77,6 @@ changes for version 1.4
     - add backup button: You can save your configuration and take it anywhere to use.
     - add restore button: you can restore the entire configuration if the application has very serious problems.
     - Skip silence (Recommended only for music): Silence will be ignored when moving to the next video or returning to the previous video.
-    - Speak player status notifications: When this is selected all notifications in the player will be read clearly from the screen reader. If you turn it off, it will be completely silent, making you feel more comfortable when watching videos.
     - After Video Finishes: allows you to choose actions to be performed in the music player including:
         - Close the player: The music player will close after the video ends.
         - Replay video: you can allow the video to playback multiple times.
@@ -60,8 +94,8 @@ changes for version 1.4
 - New shortcut:
   - control+shift+s: activate settings
   - control+g: go to time (only valid in player interface).
-  - mở ngoặc vuông [: Start selection.
-  - đóng ngoặc vuông ]: End selection.
+  - Left Bracket [: Start selection.
+  - Right Bracket ]: End selection.
   - alt+o: go to option menu (Use only in music player).
   - control+s: Save selection as.
   - control+shift+d: activate Video Description...
@@ -76,7 +110,7 @@ changes for version 1.4
   - readme has been updated.
   - Updated libraries to hide unnecessary windows.
   - The application will run under administrator rights when you call it from anywhere on the computer.
-  - Fixed the error of not being able to enter text in the input boxes. Please note that to be able to type text when running under administrator rights, please set the Vietnamese percussion instruments to run under administrator rights to be effective.
+  - Fixed the error of not being able to enter text in the input boxes. Please note that to be able to type text when running under administrator rights, please set your Vietnamese input method (e.g., Unikey) to run under administrator rights to be effective.
   - Fixed an issue where playlists could not be loaded in video viewing history.
   - Now all actions in the filter are working properly.
   - Fixed all errors with control+tab and control+shift+tab keyboard shortcuts.
