@@ -95,16 +95,17 @@ Player  tab
 In this tab there will be a number of options used for the music player:
 Audio Output Device.
 Skip silence (Recommended only for music).
-- Enable custom announcement mode:
-Seek: No Speech, Volume: Speech (Default)
-Seek: Speak Percentage
-Seek: Speak Percentage and Time
+Seeking Announcement Mode:
+Silent
+Read percentage
+Read time
 After Video Finishes:
 Close the player
 Replay video
 Do nothing
 Fast Forward Interval (Seconds).
 Rewind Interval (Seconds).
+Continue watching (Resume from last position)
 Data  tab
 In this tab there will be a few options related to configuration data:
 Backup Configuration.
