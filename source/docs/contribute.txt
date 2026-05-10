@@ -1,0 +1,13 @@
+contribution
+Thank you developers for constantly working to bring users new experiences and premium features. I made this document to express my deep gratitude to them:
+- vodinhhoang:
+  - helped us convert the music player to vlc to enhance the user experience.
+  - Several minor feature improvements and bug fixes have been made.
+  - hinted at things that had never been seen in previous versions.
+- vodinhhung:
+  - donated to us the entire repository to make the software available to many users.
+  - suggested updating some valuable sounds.
+- nguyenninhhoang:
+  - Added mechanism to view direct links from YouTube and supported sites.
+  - Markdown removal mechanism has been applied in relevant sections.
+  - Fixed most unexpected errors.

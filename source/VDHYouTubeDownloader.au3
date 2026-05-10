@@ -2,6 +2,8 @@
 #AutoIt3Wrapper_Res_HiDPI=Y
 #include <GUIConstants.au3>
 #include <ColorConstants.au3>
+#include <EditConstants.au3>
+#include <ButtonConstants.au3>
 #include <GuiListBox.au3>
 #include <WindowsConstants.au3>
 #include <Constants.au3>
@@ -225,7 +227,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "1.7"
+Global $version = "1.8"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -269,7 +271,7 @@ Global $g_iOriginalX, $g_iOriginalY, $g_iOriginalW, $g_iOriginalH
 Global $hDummySpace, $hDummyEnter, $hDummyN, $hDummyUp, $hDummyDown, $hDummyLeft, $hDummyRight, $hDummyAltO
 Global $hDummyCtrlLeft, $hDummyCtrlRight, $hDummyCtrlT, $hDummyCtrlShiftT, $hDummyHome, $hDummyEnd
 Global $hDummy1, $hDummy2, $hDummy3, $hDummy4, $hDummy5, $hDummy6, $hDummy7, $hDummy8, $hDummy9, $hDummyP
-Global $hDummyR, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE, $hDummyEsc, $hDummyG, $hDummyApps, $hDummyBracketLeft, $hDummyBracketRight, $hDummyCtrlS, $hDummyCtrlK, $hDummyCtrlC, $hDummyCtrlShiftC, $hDummyCtrlShiftD, $hDummyAltB, $hDummyAltG
+Global $hDummyR, $hDummyRemaining, $hDummyShiftN, $hDummyShiftB, $hDummyCtrlW, $hDummyMinus, $hDummyEqual, $hDummyS, $hDummyD, $hDummyF, $hDummyCtrlShiftE, $hDummyEsc, $hDummyG, $hDummyApps, $hDummyBracketLeft, $hDummyBracketRight, $hDummyCtrlS, $hDummyCtrlK, $hDummyCtrlC, $hDummyCtrlShiftC, $hDummyCtrlShiftD, $hDummyAltB, $hDummyAltG
 Global $g_sLastReportedText = "", $g_iLastReportedTime = 0
 Global $g_sCurrentVideoTitle = ""
 Global $g_sSearchFilter = "No Filter"
@@ -357,10 +359,11 @@ GUICtrlSetColor(-1, 0xFFFFFF)
 
 Global $btn_Menu_DL = GUICtrlCreateButton("Download from link (Alt+D)", 50, 60, 200, 40)
 Global $btn_Menu_PL = GUICtrlCreateButton("Play YouTube link (Alt+P)", 50, 105, 200, 40)
-Global $btn_Menu_SC = GUICtrlCreateButton("Search on YouTube (Alt+S)", 50, 150, 200, 40)
-Global $btn_Menu_CL = GUICtrlCreateButton("Your Collections (Alt+C)", 50, 195, 200, 40)
-Global $btn_Menu_FV = GUICtrlCreateButton("Favorites (Alt+F)", 50, 240, 100, 40)
-Global $btn_Menu_WS = GUICtrlCreateButton("Watch History (Alt+W)", 150, 240, 100, 40)
+Global $btn_Menu_Direct = GUICtrlCreateButton("Play direct link (Alt+L)", 50, 150, 200, 40)
+Global $btn_Menu_SC = GUICtrlCreateButton("Search on YouTube (Alt+S)", 50, 195, 200, 40)
+Global $btn_Menu_CL = GUICtrlCreateButton("Your Collections (Alt+C)", 50, 240, 200, 40)
+Global $btn_Menu_FV = GUICtrlCreateButton("Favorites (Alt+F)", 10, 285, 100, 30)
+Global $btn_Menu_WS = GUICtrlCreateButton("Watch History (Alt+W)", 120, 285, 150, 30)
 
 Global $menu_main = GUICtrlCreateMenu("Preferences")
 Global $menu_settings = GUICtrlCreateMenuItem("Settings... (Ctrl+Shift+S)", $menu_main)
@@ -374,16 +377,46 @@ Global $menu_contact = GUICtrlCreateMenuItem("Contact...", $menu_help)
 Global $menu_update_ytdlp = GUICtrlCreateMenuItem("Checked for updates &yt_dlp...", $menu_help)
 Global $menu_Update_app = GUICtrlCreateMenuItem("Checked for &Updates...", $menu_help)
 Global $menuChangelog = GuiCtrlCreateMenuItem("view changelog...", $menu_help)
+Global $menuContribute = GuiCtrlCreateMenuItem("con&tribute...", $menu_help)
 
 GUISetState(@SW_SHOW, $mainform)
 ControlFocus($mainform, "", $label)
 
-Func _AllowUIPI($hWnd)
-    Local $hTarget = _Ternary(IsHWnd($hWnd), $hWnd, GUICtrlGetHandle($hWnd))
-    Local $aMessages = [0x0100, 0x0101, 0x0102, 0x0104, 0x0105, 0x003D, 0x004A, 0x010D, 0x010E, 0x010F, 0x0281, 0x0282, 0x0286]
-    For $iMsg In $aMessages
-        DllCall("user32.dll", "bool", "ChangeWindowMessageFilterEx", "hwnd", $hTarget, "uint", $iMsg, "dword", 1, "ptr", 0)
-    Next
+Func _ShowDirectLinkPlayer()
+    Local $hDirectGui = GUICreate("Direct Link Player", 400, 150, -1, -1, BitOR($WS_CAPTION, $WS_POPUPWINDOW, $WS_VISIBLE))
+    GUISetBkColor($COLOR_BLUE, $hDirectGui)
+
+    GUICtrlCreateLabel("Enter Direct URL:", 10, 20, 380, 20)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+    Local $inpUrl = GUICtrlCreateInput("", 10, 45, 380, 20)
+
+    Local $btnOk = GUICtrlCreateButton("OK", 80, 80, 100, 30, $GUI_DEFBUTTON)
+    Local $btnCancel = GUICtrlCreateButton("Cancel", 200, 80, 100, 30)
+
+    _AllowUIPI($hDirectGui)
+    GUISetState(@SW_SHOW, $hDirectGui)
+    WinActivate($hDirectGui)
+    ControlFocus($hDirectGui, "", $inpUrl)
+
+    While 1
+        Local $msg = GUIGetMsg()
+        Switch $msg
+            Case $GUI_EVENT_CLOSE, $btnCancel
+                _VLC_Direct_Stop()
+                GUIDelete($hDirectGui)
+                GUISetState(@SW_SHOW, $mainform)
+                Return
+            Case $btnOk
+                Local $sUrl = GUICtrlRead($inpUrl)
+                If $sUrl <> "" Then
+                    SoundPlay(@ScriptDir & "\sounds\ok.wav")
+                    GUIDelete($hDirectGui)
+                    _PlayInternal($sUrl, "Direct Link Player", False, 0, False, "")
+                    GUISetState(@SW_SHOW, $mainform)
+                    Return
+                EndIf
+        EndSwitch
+    WEnd
 EndFunc
 Local $hDummyUpdateApp = GUICtrlCreateDummy()
 Local $hDummyUpdateYTDLP = GUICtrlCreateDummy()
@@ -393,12 +426,13 @@ Local $hDummyEscMain = GUICtrlCreateDummy()
 Local $hDummySettings = GUICtrlCreateDummy()
 Local $hDummyEnterMain = GUICtrlCreateDummy()
 
-Local $aAccel[14][2] = [ _
+Local $aAccel[15][2] = [ _
     ["^+u", $hDummyUpdateApp], _
     ["^+y", $hDummyUpdateYTDLP], _
     ["{F1}", $hDummyReadme], _
     ["!d", $btn_Menu_DL], _
     ["!p", $btn_Menu_PL], _
+    ["!l", $btn_Menu_Direct], _
     ["!s", $btn_Menu_SC], _
     ["!c", $btn_Menu_CL], _
     ["!f", $btn_Menu_FV], _
@@ -457,6 +491,10 @@ While 1
             SoundPlay("sounds/enter.wav")
             _ShowPlayer()
 
+        Case $btn_Menu_Direct
+            SoundPlay("sounds/enter.wav")
+            _ShowDirectLinkPlayer()
+
         Case $btn_Menu_SC
             SoundPlay("sounds/enter.wav")
             _ShowSearch()
@@ -494,6 +532,9 @@ While 1
         Case $menuChangelog, $hDummyChangelog
             SoundPlay("sounds/enter.wav")
             _ShowChangelog()
+        Case $menuContribute
+            SoundPlay("sounds/enter.wav")
+            contribute()
         Case $menu_settings, $hDummySettings
             SoundPlay("sounds/enter.wav")
             _ShowSettings()
@@ -744,8 +785,6 @@ Func _ShowSearch()
     GUISetAccelerators($aAccelSC, $hCurrentSubGui)
 
     GUISetState(@SW_SHOW, $hCurrentSubGui)
-    _AllowUIPI($hCurrentSubGui)
-    _AllowUIPI($inp_search)
     ControlFocus($hCurrentSubGui, "", $inp_search)
 
     While 1
@@ -923,8 +962,6 @@ Func _ShowSearchHistoryWindow()
             Case $GUI_EVENT_CLOSE, $btn_back
                 GUIDelete($hSearchHistoryGui)
                 GUISetState(@SW_SHOW, $hCurrentSubGui)
-    _AllowUIPI($hCurrentSubGui)
-    _AllowUIPI($inp_search)
     ControlFocus($hCurrentSubGui, "", $inp_search)
                 Return
 
@@ -939,8 +976,6 @@ Func _ShowSearchHistoryWindow()
                         Local $sRes = _ShowSearchResultsWindow($sCurrentKeyword, "No Filter")
                         If $sRes = "RETURN_MAIN" Then Return "RETURN_MAIN"
                         GUISetState(@SW_SHOW, $hCurrentSubGui)
-    _AllowUIPI($hCurrentSubGui)
-    _AllowUIPI($inp_search)
     ControlFocus($hCurrentSubGui, "", $inp_search)
                         Return
                     EndIf
@@ -1036,8 +1071,6 @@ Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
                 GUIDelete($hResultsGui)
                 $hResultsGui = 0
                 GUISetState(@SW_SHOW, $hCurrentSubGui)
-    _AllowUIPI($hCurrentSubGui)
-    _AllowUIPI($inp_search)
     ControlFocus($hCurrentSubGui, "", $inp_search)
                 Return
             Case $btn_return_main
@@ -1070,8 +1103,6 @@ Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
                 GUIDelete($hResultsGui)
                 $hResultsGui = 0
                 GUISetState(@SW_SHOW, $hCurrentSubGui)
-    _AllowUIPI($hCurrentSubGui)
-    _AllowUIPI($inp_search)
     ControlFocus($hCurrentSubGui, "", $inp_search)
                 Return
             Case $lst_results
@@ -1985,6 +2016,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $hDummyP = GUICtrlCreateDummy()
 
         $hDummyR = GUICtrlCreateDummy()
+        $hDummyRemaining = GUICtrlCreateDummy()
         $hDummyShiftN = GUICtrlCreateDummy()
         $hDummyShiftB = GUICtrlCreateDummy()
         $hDummyCtrlW = GUICtrlCreateDummy()
@@ -2013,10 +2045,11 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         ; Re-initialize empty Dummy as a "black hole" to block Right-Click Menu / Shift+F10
         $hDummyApps = GUICtrlCreateDummy() 
 
-        Local $aAccelPlay[46][2] = [ _
+        Local $aAccelPlay[47][2] = [ _
             ["{SPACE}", $hDummySpace], _
             ["n", $hDummyN], _ ; Next
             ["r", $hDummyR], _ ; Repeat
+            ["^r", $hDummyRemaining], _ ; Remaining time
             ["+n", $hDummyShiftN], _ ; Force Next
             ["+b", $hDummyShiftB], _ ; Force Back
             ["{UP}", $hDummyUp], _
@@ -2352,6 +2385,15 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 _ReportStatus(_Ternary($g_bRepeat, "Repeat ON", "Repeat OFF"))
                 IniWrite($CONFIG_FILE, "Settings", "Repeat", _Ternary($g_bRepeat, "true", "false"))
 
+            Case $hDummyRemaining
+                Local $iLength = _VLC_Direct_GetLength()
+                Local $iTime = _VLC_Direct_GetTime()
+                If $iLength > 0 Then
+                    Local $iRemaining = ($iLength - $iTime) / 1000
+                    If $iRemaining < 0 Then $iRemaining = 0
+                    _ReportStatus("Remaining time: " & _FormatTime($iRemaining))
+                EndIf
+
             Case $hDummyShiftN
                 $sAction = "NEXT"
                 ExitLoop
@@ -2514,6 +2556,10 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         EndIf
     EndIf
 
+    ; Cleanup
+    _VLC_Direct_Stop()
+    If IsHWnd($hPlayGui) Then GUIDelete($hPlayGui)
+    $hPlayGui = 0
     If $hLoading <> 0 Then GUIDelete($hLoading)
     Return $sAction
 EndFunc
@@ -3527,6 +3573,7 @@ Func _CheckGithubUpdate($bSilent = False)
             Local $sChangelog = ""
             If IsArray($aBodyMatch) Then
                 $sChangelog = _UnescapeJSON($aBodyMatch[0])
+                $sChangelog = _StripMarkdown($sChangelog)
             EndIf
 
             ; Custom Update GUI
@@ -3639,6 +3686,7 @@ Func _ShowChangelog()
 
     If FileExists($sFilePath) Then
         $sContent = FileRead($sFilePath)
+        $sContent = _StripMarkdown($sContent)
     EndIf
 
     Local $hChangelogGUI = GuiCreate("Changelog", 400, 450)
@@ -3654,6 +3702,56 @@ Func _ShowChangelog()
                 ExitLoop
         EndSwitch
     WEnd
+EndFunc
+
+Func _UnescapeJSON($sString)
+    $sString = StringReplace($sString, '\"', '"')
+    $sString = StringReplace($sString, '\\', '\')
+    $sString = StringReplace($sString, '\/', '/')
+    $sString = StringReplace($sString, '\b', Chr(8))
+    $sString = StringReplace($sString, '\f', Chr(12))
+    $sString = StringReplace($sString, '\n', @LF)
+    $sString = StringReplace($sString, '\r', @CR)
+    $sString = StringReplace($sString, '\t', @TAB)
+    
+    ; Handle \uXXXX
+    Local $aMatch = StringRegExp($sString, "(?i)\\u([0-9a-f]{4})", 3)
+    If IsArray($aMatch) Then
+        For $i = 0 To UBound($aMatch) - 1
+            $sString = StringReplace($sString, "\u" & $aMatch[$i], ChrW(Dec($aMatch[$i])))
+        Next
+    EndIf
+    
+    Return $sString
+EndFunc
+
+Func _StripMarkdown($sText)
+    ; Remove HTML tags (if any)
+    $sText = StringRegExpReplace($sText, "<[^>]*>", "")
+    ; Remove bold and italic
+    $sText = StringRegExpReplace($sText, "(\*\*|__)(.*?)\1", "$2")
+    $sText = StringRegExpReplace($sText, "(\*|_)(.*?)\1", "$2")
+    ; Remove headers
+    $sText = StringRegExpReplace($sText, "(?m)^#+\s+", "")
+    ; Remove links: [text](url) -> text
+    $sText = StringRegExpReplace($sText, "\[(.*?)\]\(.*?\)", "$1")
+    ; Remove images: ![text](url) -> nothing
+    $sText = StringRegExpReplace($sText, "!\[.*?\]\(.*?\)", "")
+    ; Remove inline code
+    $sText = StringRegExpReplace($sText, "`(.+?)`", "$1")
+    ; Remove code blocks
+    $sText = StringReplace($sText, "```", "")
+    ; Remove blockquotes
+    $sText = StringRegExpReplace($sText, "(?m)^>\s+", "")
+    ; Remove list markers: -, *, + at the start of lines (with optional indentation)
+    $sText = StringRegExpReplace($sText, "(?m)^\s*[\-\*\+]\s+", "")
+    ; Remove task lists: - [ ] or - [x]
+    $sText = StringRegExpReplace($sText, "(?m)^\s*[\-\*\+]\s+\[[ xX]\]\s+", "")
+    ; Remove numbered lists: 1. 2. etc.
+    $sText = StringRegExpReplace($sText, "(?m)^\s*\d+\.\s+", "")
+    ; Remove horizontal rules: ---, ***, ___
+    $sText = StringRegExpReplace($sText, "(?m)^[\-\*_]{3,}\s*$", "")
+    Return $sText
 EndFunc
 
 Func _Get_YTDLP_LocalVersion()
@@ -4077,6 +4175,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
     GUISetBkColor(0xFFFFFF)
     GUICtrlCreateLabel("Loading playlist: " & $sPlaylistTitle & "...", 10, 25, 280, 40, $SS_CENTER)
     GUISetState(@SW_SHOW, $hLoad)
+    DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\loading.wav", "ptr", 0, "dword", 0x0009)
 
     ; 2. Tải danh sách video bằng yt-dlp - Đưa I: xuống cuối để đảm bảo T và D đã có trước khi Add
     Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "I:%(id)s" --no-warnings --encoding utf-8 -- "' & $sPlaylistID & '"'
@@ -4095,7 +4194,9 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
     $sErr &= StderrRead($iPID)
 
     Local $sOutput = BinaryToString($bData, 4)
+    DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
     GUIDelete($hLoad)
+    SoundPlay(@ScriptDir & "\sounds\ok.wav")
 
     Local $aLines = StringSplit(StringStripCR($sOutput), @LF)
     If $aLines[0] <= 1 And $sOutput == "" Then
@@ -4200,6 +4301,7 @@ Func _ShowChannelVideos($sChannelID, $sChannelTitle)
     GUISetBkColor(0xFFFFFF)
     GUICtrlCreateLabel("Loading all videos from: " & $sChannelTitle & "...", 10, 25, 280, 40, $SS_CENTER)
     GUISetState(@SW_SHOW, $hLoad)
+    DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\loading.wav", "ptr", 0, "dword", 0x0009)
 
     ; 2. Tải danh sách video bằng yt-dlp từ tab videos của channel
     Local $sUrl = "https://www.youtube.com/channel/" & $sChannelID & "/videos"
@@ -4221,7 +4323,9 @@ Func _ShowChannelVideos($sChannelID, $sChannelTitle)
     $sErr &= StderrRead($iPID)
 
     Local $sOutput = BinaryToString($bData, 4)
+    DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
     GUIDelete($hLoad)
+    SoundPlay(@ScriptDir & "\sounds\ok.wav")
 
     Local $aLines = StringSplit(StringStripCR($sOutput), @LF)
     If $aLines[0] <= 1 And $sOutput == "" Then
@@ -4822,27 +4926,6 @@ Func _AddtoCollection($sID, $sTitle)
     WEnd
 EndFunc
 
-Func _UnescapeJSON($sJson)
-    Local $sText = $sJson
-    $sText = StringReplace($sText, '\"', '"')
-    $sText = StringReplace($sText, '\\', '\')
-    $sText = StringReplace($sText, '\/', '/')
-    $sText = StringReplace($sText, '\b', Chr(8))
-    $sText = StringReplace($sText, '\f', Chr(12))
-    $sText = StringReplace($sText, '\n', @LF)
-    $sText = StringReplace($sText, '\r', @CR)
-    $sText = StringReplace($sText, '\t', @TAB)
-    
-    ; Handle \uXXXX
-    Local $aUnicodes = StringRegExp($sText, '\\u([0-9a-fA-F]{4})', 3)
-    If IsArray($aUnicodes) Then
-        For $i = 0 To UBound($aUnicodes) - 1
-            $sText = StringReplace($sText, '\u' & $aUnicodes[$i], ChrW(Dec($aUnicodes[$i])))
-        Next
-    EndIf
-    Return $sText
-EndFunc
-
 Func _Ternary($bCondition, $vTrue, $vFalse)
     If $bCondition Then Return $vTrue
     Return $vFalse
@@ -5006,4 +5089,30 @@ EndFunc
 Func _GetPlaybackPosition($sID)
 If $sID = "" Then Return 0  
     Return Int(IniRead($PLAYBACK_POSITIONS_FILE, "Positions", $sID, "0"))
+EndFunc
+
+; Fixes UIPI isolation issues for windows
+Func _AllowUIPI($hWnd)
+    If Not IsHWnd($hWnd) Then Return False
+    Local $aResult = DllCall("user32.dll", "bool", "ChangeWindowMessageFilterEx", "hwnd", $hWnd, "uint", 0x0049, "dword", 1, "ptr", 0) ; WM_COPYGLOBALDATA
+    $aResult = DllCall("user32.dll", "bool", "ChangeWindowMessageFilterEx", "hwnd", $hWnd, "uint", 0x0233, "dword", 1, "ptr", 0) ; WM_DROPFILES
+    $aResult = DllCall("user32.dll", "bool", "ChangeWindowMessageFilterEx", "hwnd", $hWnd, "uint", 0x004A, "dword", 1, "ptr", 0) ; WM_COPYDATA
+    Return True
+EndFunc
+
+Func contribute()
+    Local $congui = GuiCreate("contribute", 700, 700)
+    GuiSetBkColor($COLOR_RED)
+    Local $txtContribute = FileExists(@ScriptDir & "\docs\contribute.txt") ? FileRead(@ScriptDir & "\docs\contribute.txt") : "VDH YouTube Downloader"
+    Local $sContent = _StripMarkdown($txtContribute)
+    Local $conedit = GUICtrlCreateEdit($sContent, 20, 20, 650, 600, BitOR($ES_AUTOVSCROLL, $ES_READONLY, $WS_VSCROLL, $WS_TABSTOP))
+    Local $btnClose = GUICtrlCreateButton("&Close", 300, 630, 100, 30, $WS_TABSTOP)
+    GuiSetState(@SW_SHOW, $congui)
+    While 1
+        Switch GuiGetMSG()
+            Case $GUI_EVENT_CLOSE, $btnClose
+                GuiDelete($congui)
+                ExitLoop
+        EndSwitch
+    WEnd
 EndFunc

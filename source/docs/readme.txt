@@ -5,6 +5,7 @@ Instructions:
 After downloading, please extract the file. Note: If your antivirus software scans the exe file, please turn off your antivirus software. Find the vdh youtube downloader.exe file to start a software window.
 After running, an interface will appear with the following functions:
 PlayYouTubeLink: This function allows you to paste the YouTube link so you can listen. It includes a Play (Default Player) button to listen directly within the software interface. Play in Browser allows you to open it directly in your browser.
+Play a direct link: You can watch videos directly from YouTube or sites that support stream links.
 Download from Link: This function allows you to paste the YouTube link to download the video. When you paste the link to the entire playlist, it will download the entire playlist. Note: Downloading the playlist takes quite a long time. You can currently download MP4, WebM, MP3, WAV, and M4A videos. Additionally, you can also download videos from other sites outside of YouTube.
 Search on YouTube: This function allows you to search for a song or video of your choice. When you press this button, a "Enter keyword to search" box will appear where you can enter your desired result. For example, the result might be "hello". After entering the result, find the search button and press it. When you press the search button, another interface will appear where you can use the up and down arrow keys or navigate with your mouse to browse through the list boxes. After finding the desired result, press it again, and the options interface will appear. You can do whatever you want with this interface; you can play, download, or copy the video link to your clipboard.
 Search History: Search history will be stored for convenient searching.
@@ -58,6 +59,7 @@ control+shift+d: Video Description...
 control+c: Copy the youtube link with the selected time.
 alt+w: watch history
 p: see percentage of video.
+control+r: see remaining time.
 option menu:
 you can access in music player.
 play: activate play video.

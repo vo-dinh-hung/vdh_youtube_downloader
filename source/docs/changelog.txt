@@ -1,3 +1,19 @@
+changes for version 1.8
+- new feature:
+  - Completely removed markdown in update dialogs and view change logs for better reading.
+  - Now you can watch any movie directly or a shared YouTube link through the live streaming feature.
+  - now pressing control+t and control+shift+t in live view shows unknown time.
+  - The end and rewind/forward keys will not be interrupted.
+  - Upgraded the commenting system so that responses to comments in the list can be viewed.
+  - add contribution in help menu.
+  - Now in comments you can adjust how comments are displayed, refresh the list, press copy and the screen reader will notify you that it has been copied to the clipboard.
+  - Now you can directly open the link while reading the description.
+  - In videos without a description, the system will also tell you instead of a blank box like now.
+  - Now you can see the remaining time by pressing the key **control+r** in the player.
+  - Now when copying the description the screen reader will notify you.
+  - update sound.
+  - readme has been updated.
+
 changes for version 1.7
 - new feature:
   - add Continue watching (Resume from last position) in player settings.
