@@ -8,6 +8,7 @@ Thank you developers for constantly working to bring users new experiences and p
   - donated to us the entire repository to make the software available to many users.
   - suggested updating some valuable sounds.
 - nguyenninhhoang:
+  - New sound support and keyboard typing feature with sound.
   - Added mechanism to view direct links from YouTube and supported sites.
   - Markdown removal mechanism has been applied in relevant sections.
   - Fixed most unexpected errors.

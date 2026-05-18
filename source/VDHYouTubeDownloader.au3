@@ -12,6 +12,7 @@
 #include <GuiMenu.au3>
 #include <GuiTab.au3>
 #include <GuiEdit.au3>
+#include <WinAPI.au3>
 #include <WinAPISys.au3>
 
 ; --- DIRECT LIBVLC WRAPPER (NO ACCESSIBILITY / NO PERCENTAGE) ---
@@ -75,9 +76,10 @@ Func _VLC_Direct_Init()
         "--plugin-path=" & $sVLC_Path & "\plugins", _
         "--no-video-title-show", _
         "--audio-time-stretch", _
-        "--clock-jitter=0", _
-        "--clock-synchro=0", _
+        "--clock-jitter=1000", _
         "--network-caching=1000", _
+        "--file-caching=1000", _
+        "--live-caching=1000", _
         "--no-stats" _
     ]
     
@@ -227,7 +229,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "1.8"
+Global $version = "1.9"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -280,6 +282,8 @@ Global $g_hGuiDL, $g_hTabDL, $g_hDummyNextDL, $g_hDummyPrevDL
 
 Global $g_iSleepTimerDuration = 0
 Global $g_hSleepTimerInit = 0
+Global $g_hSearchEditCallback = 0
+Global $g_pOldSearchEditProc = 0
 
 Global $SETTINGS_DIR = @AppDataDir & "\VDHYouTubeDownloader"
 If Not FileExists($SETTINGS_DIR) Then DirCreate($SETTINGS_DIR)
@@ -303,6 +307,13 @@ Func _MigrateFiles()
     EndIf
 EndFunc
 _MigrateFiles()
+Global $g_bTypingSoundEnabled = IniRead($CONFIG_FILE, "Settings", "TypingSoundEnabled", "true") == "true"
+Global $g_iLastSoundTime = 0
+Global $g_iSoundLock = 0
+Global $g_iLastHookTime = 0
+Global $g_iLastVkCode = 0
+Global $g_bIsSoundPlaying = False
+Global $g_sTypingSoundSet = IniRead($CONFIG_FILE, "Settings", "TypingSoundSet", "1blueSwitch")
 Global $g_bAutoUpdate = IniRead($CONFIG_FILE, "Settings", "AutoUpdate", "true") == "true"
 Global $g_bAutoStart = IniRead($CONFIG_FILE, "Settings", "AutoStart", "false") == "true"
 Global $g_bSkipSilence = IniRead($CONFIG_FILE, "Settings", "SkipSilence", "false") == "true"
@@ -333,9 +344,9 @@ GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
 SoundPlay(@ScriptDir & "\sounds\start.wav")
 Local $hStartTimer = TimerInit()
-While TimerDiff($hStartTimer) < 3000
+While TimerDiff($hStartTimer) < 500
     GUIGetMsg()
-    Sleep(10)
+    Sleep(3000)
 WEnd
 GUIDelete($lding)
 
@@ -408,10 +419,27 @@ Func _ShowDirectLinkPlayer()
                 Return
             Case $btnOk
                 Local $sUrl = GUICtrlRead($inpUrl)
-                If $sUrl <> "" Then
-                    SoundPlay(@ScriptDir & "\sounds\ok.wav")
+                If $sUrl = "" Then
+                    MsgBox(16, "Error", "Please enter the Direct URL!")
+                Else
                     GUIDelete($hDirectGui)
-                    _PlayInternal($sUrl, "Direct Link Player", False, 0, False, "")
+                    
+                    ; Create loading dialog
+                    Local $hLoading = GUICreate("Loading", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW))
+                    GUICtrlCreateLabel("Loading stream, please wait...", 10, 25, 230, 30, $SS_CENTER)
+                    GUISetBkColor(0xFFFFFF, $hLoading)
+                    GUISetState(@SW_SHOW, $hLoading)
+                    ; Thông báo cho NVDA
+                    _NVDA_Speak("Loading stream, please wait.")
+                    
+                    ; Phát loading.wav (không chặn) và ok.wav
+                    SoundPlay(@ScriptDir & "\sounds\loading.wav") 
+                    SoundPlay(@ScriptDir & "\sounds\ok.wav")
+                    
+                    ; Giảm trì hoãn để phản hồi nhanh hơn
+                    Sleep(200)
+                    
+                    _PlayInternal($sUrl, "Direct Link Player", False, $hLoading, False, "")
                     GUISetState(@SW_SHOW, $mainform)
                     Return
                 EndIf
@@ -472,6 +500,8 @@ While 1
                 $msg = $btn_Menu_FV
             Case GUICtrlGetHandle($btn_Menu_WS)
                 $msg = $btn_Menu_WS
+            Case GUICtrlGetHandle($btn_Menu_Direct)
+                $msg = $btn_Menu_Direct
         EndSwitch
     EndIf
 
@@ -484,59 +514,59 @@ While 1
             Exit
 
         Case $btn_Menu_DL
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowDownloader()
 
         Case $btn_Menu_PL
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowPlayer()
 
         Case $btn_Menu_Direct
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowDirectLinkPlayer()
 
         Case $btn_Menu_SC
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowSearch()
 
         Case $btn_Menu_CL
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowCollections()
 
         Case $btn_Menu_FV
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowFavorites()
 
         Case $btn_Menu_WS
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowHistory()
 
         Case $menu_about
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _Show_About_Window()
         Case $menu_website
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             ShellExecute("https://github.com/vo-dinh-hung/vdh_youtube_downloader")
         Case $menu_readme
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _Show_Readme_Window()
         Case $menu_contact
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _Show_Contact_Window()
         Case $menu_update_ytdlp, $hDummyUpdateYTDLP
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _Check_YTDLP_Update()
         Case $menu_Update_app, $hDummyUpdateApp
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _CheckGithubUpdate()
         Case $menuChangelog, $hDummyChangelog
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowChangelog()
         Case $menuContribute
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             contribute()
         Case $menu_settings, $hDummySettings
-            SoundPlay("sounds/enter.wav")
+            _GlobalSoundPlay("sounds/enter.wav", "system")
             _ShowSettings()
         Case $hDummyEscMain
             ; Prevent closing with Escape
@@ -747,17 +777,49 @@ Func _ShowPlayer()
 
             Case $play_btn
                 Local $input_text = GUICtrlRead($linkedit)
-                If $input_text <> "" Then playmedia($input_text)
+                If $input_text = "" Then
+                    MsgBox(16, "Error", "Please enter the video link!")
+                Else
+                    playmedia($input_text)
+                EndIf
 
             Case $audio_play_btn
                 Local $input_text = GUICtrlRead($linkedit)
-                If $input_text <> "" Then playaudio($input_text)
+                If $input_text = "" Then
+                    MsgBox(16, "Error", "Please enter the video link!")
+                Else
+                    playaudio($input_text)
+                EndIf
 
             Case $online_play_btn
                 Local $input_text = GUICtrlRead($linkedit)
-                If $input_text <> "" Then online_play($input_text)
+                If $input_text = "" Then
+                    MsgBox(16, "Error", "Please enter the video link!")
+                Else
+                    online_play($input_text)
+                EndIf
         EndSwitch
     WEnd
+EndFunc
+
+Global $g_iLastVkCode = 0
+
+Func _SearchEditProc($hWnd, $iMsg, $wParam, $lParam)
+    If $iMsg = 0x0100 Then ; WM_KEYDOWN
+        If BitAND($lParam, 0x40000000) = 0 Then
+            ; Chỉ phát nếu phím khác phím cũ HOẶC quá 50ms kể từ lần phát cuối
+            If $wParam <> $g_iLastVkCode Or TimerDiff($g_iLastHookTime) > 50 Then
+                $g_iLastVkCode = $wParam
+                $g_iLastHookTime = TimerInit()
+                
+                If $wParam < 0x25 Or $wParam > 0x28 Then
+                    _PlayTypingSound($wParam)
+                EndIf
+            EndIf
+        EndIf
+    EndIf
+    Local $aRet = DllCall("user32.dll", "lresult", "CallWindowProcW", "ptr", $g_pOldSearchEditProc, "hwnd", $hWnd, "uint", $iMsg, "wparam", $wParam, "lparam", $lParam)
+    Return $aRet[0]
 EndFunc
 
 Func _ShowSearch()
@@ -768,6 +830,12 @@ Func _ShowSearch()
     GUICtrlCreateLabel("Enter keyword to search:", 10, 15, 80, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     $inp_search = GUICtrlCreateInput("", 100, 12, 210, 20)
+    
+    ; Subclass search input for typing sounds
+    Local $hEdit = GUICtrlGetHandle($inp_search)
+    $g_hSearchEditCallback = DllCallbackRegister("_SearchEditProc", "lresult", "hwnd;uint;wparam;lparam")
+    Local $aRet = DllCall("user32.dll", "ptr", "SetWindowLong" & (@AutoItX64 ? "Ptr" : "") & "W", "hwnd", $hEdit, "int", -4, "ptr", DllCallbackGetPtr($g_hSearchEditCallback)) ; -4 = GWL_WNDPROC
+    $g_pOldSearchEditProc = $aRet[0]
 
     GUICtrlCreateLabel("Filter:", 10, 50, 80, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
@@ -792,6 +860,14 @@ Func _ShowSearch()
 
         Switch $nMsg
             Case $GUI_EVENT_CLOSE
+                If $g_pOldSearchEditProc <> 0 Then
+                    DllCall("user32.dll", "ptr", "SetWindowLong" & (@AutoItX64 ? "Ptr" : "") & "W", "hwnd", GUICtrlGetHandle($inp_search), "int", -4, "ptr", $g_pOldSearchEditProc)
+                    $g_pOldSearchEditProc = 0
+                EndIf
+                If $g_hSearchEditCallback <> 0 Then
+                    DllCallbackFree($g_hSearchEditCallback)
+                    $g_hSearchEditCallback = 0
+                EndIf
                 GUIDelete($hCurrentSubGui)
                 $hCurrentSubGui = 0
                 GUISetState(@SW_SHOW, $mainform)
@@ -799,18 +875,24 @@ Func _ShowSearch()
 
             Case $btn_voice_search
                 If FileExists($VOICE_SEARCH_EXE_PATH) Then
-                    GUICtrlSetState($btn_voice_search, $GUI_DISABLE)
-                    ; Âm thanh bắt đầu tìm kiếm
+                    ; Phát âm thanh và hệ thống voice search được gọi chạy cùng lúc
                     SoundPlay(@ScriptDir & "\sounds\start_voice_search.wav")
-
-                    Local $pid = Run(@ComSpec & ' /c ""' & $VOICE_SEARCH_EXE_PATH & '""', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+                    Local $pid = Run('"' & $VOICE_SEARCH_EXE_PATH & '"', @ScriptDir & "\lib", @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
+                    If @error Then
+                        MsgBox(16, "Error", "Failed to start voice_search.exe. Error code: " & @error)
+                        ContinueLoop
+                    EndIf
+                    ; ControlFocus($hCurrentSubGui, "", $inp_search)
+                    GUICtrlSetState($btn_voice_search, $GUI_DISABLE)
                     Local $bBinaryOutput = Binary("")
                     While ProcessExists($pid)
                         $bBinaryOutput &= StdoutRead($pid, False, True)
+                        $bBinaryOutput &= StderrRead($pid, False, True)
                         GUIGetMsg()
                         Sleep(10)
                     WEnd
                     $bBinaryOutput &= StdoutRead($pid, False, True)
+                    $bBinaryOutput &= StderrRead($pid, False, True)
 
                     ; Âm thanh kết thúc tìm kiếm
                     SoundPlay(@ScriptDir & "\sounds\stop_voice_search.wav")
@@ -836,25 +918,18 @@ Func _ShowSearch()
                     Next
 
                     If $sError <> "" Then
-                        Local $sTranslatedError = $sError
                         If StringInStr($sError, "Could not understand audio") Then
-                            $sTranslatedError = "Could not recognize speech. Please speak more clearly or check your microphone."
                             SoundPlay(@ScriptDir & "\sounds\error.wav")
                         ElseIf StringInStr($sError, "check your microphone") Then
-                            $sTranslatedError = "Microphone connection error. Please check your recording device."
                             SoundPlay(@ScriptDir & "\sounds\error.wav")
                         ElseIf StringInStr($sError, "listening timed out") Then
-                            $sTranslatedError = "Listening timed out. You didn't start speaking in time. Please try again."
                             SoundPlay(@ScriptDir & "\sounds\error.wav")
                         ElseIf StringInStr($sError, "internet") Or StringInStr($sError, "network") Or StringInStr($sError, "connection") Then
-                            $sTranslatedError = "No internet connection. Please check your network and try again."
                             SoundPlay(@ScriptDir & "\sounds\no_internet.wav")
                         EndIf
-                        _NVDA_Speak("Voice search error: " & $sTranslatedError)
-                        MsgBox(16, "Voice Search Error", $sTranslatedError)
                     ElseIf $sResult <> "" Then
                         GUICtrlSetData($inp_search, $sResult)
-                        ControlFocus($hCurrentSubGui, "", $inp_search)
+                        ; ControlFocus($hCurrentSubGui, "", $inp_search)
                         
                         If $g_bVoiceAutoSearch Then
                             $sCurrentKeyword = $sResult
@@ -871,7 +946,6 @@ Func _ShowSearch()
                         EndIf
                     Else
                         SoundPlay(@ScriptDir & "\sounds\error.wav")
-                        _NVDA_Speak("Voice search did not recognize any speech.")
                     EndIf
                     GUICtrlSetState($btn_voice_search, $GUI_ENABLE)
                 Else
@@ -882,7 +956,9 @@ Func _ShowSearch()
                 $sCurrentKeyword = GUICtrlRead($inp_search)
                 $g_sSearchFilter = GUICtrlRead($cbo_filter)
                 IniWrite($CONFIG_FILE, "Settings", "SearchFilter", $g_sSearchFilter)
-                If $sCurrentKeyword <> "" Then
+                If $sCurrentKeyword = "" Then
+                    MsgBox(16, "Error", "Please enter a keyword to search!")
+                Else
                     _AddSearchHistory($sCurrentKeyword)
                     Local $sRes = _ShowSearchResultsWindow($sCurrentKeyword, $g_sSearchFilter)
                     If $sRes = "RETURN_MAIN" Then
@@ -1923,6 +1999,18 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         $g_sCurrentVideoTitle = $sTitle
         ; Sử dụng style tiêu chuẩn hơn để Menu Bar hiển thị tốt nhất
         $hPlayGui = GUICreate($sTitle, $iWidth, $iHeight + 60, -1, -1, BitOR($WS_OVERLAPPEDWINDOW, $WS_CLIPCHILDREN), $WS_EX_TOPMOST)
+        
+        ; Tạo loading dialog NGAY TẠI ĐÂY nếu chưa có
+        If $hLoading = 0 Then
+            $hLoading = GUICreate("Playing", 250, 80, -1, -1, BitOR($WS_POPUP, $WS_BORDER), BitOR($WS_EX_TOPMOST, $WS_EX_TOOLWINDOW), $hPlayGui)
+            GUICtrlCreateLabel("Loading stream, please wait...", 10, 25, 230, 30, $SS_CENTER)
+            GUISetBkColor(0xFFFFFF, $hLoading)
+            GUISetState(@SW_SHOW, $hLoading)
+            
+            ; Phát âm thanh loading
+            DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\loading.wav", "ptr", 0, "dword", 0x0009)
+        EndIf
+
         GUISetBkColor(0x000000)
         GUISwitch($hPlayGui)
 
@@ -2112,6 +2200,13 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
 
     ; Use direct DLL calls to play music (Prevents NVDA from reading percentage)
     _VLC_Direct_Play($sUrl)
+    If $hLoading = 0 Then
+        GUICtrlSetData($g_hStatusLabel, "Loading stream...")
+        DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\loading.wav", "ptr", 0, "dword", 0x0009) ; SND_FILENAME | SND_ASYNC
+    EndIf
+
+    ; Give some time for stream to initialize to prevent early interruption
+    Sleep(200)    
     _VLC_Direct_SetVolume($g_iAppVolume)
     _VLC_Direct_SetRate($g_fPitch)
 
@@ -2426,12 +2521,16 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
                 If $g_iFFStep > 1 Then $g_iFFStep -= 1
                 If $g_iRWStep > 1 Then $g_iRWStep -= 1
                 $g_iSeekStep = $g_iFFStep
+                IniWrite($CONFIG_FILE, "Settings", "FFStep", $g_iFFStep)
+                IniWrite($CONFIG_FILE, "Settings", "RWStep", $g_iRWStep)
                 _ReportStatus("Seek Step: Forward " & $g_iFFStep & "s, Backward " & $g_iRWStep & "s")
 
             Case $hDummyEqual
                 $g_iFFStep += 1
                 $g_iRWStep += 1
                 $g_iSeekStep = $g_iFFStep
+                IniWrite($CONFIG_FILE, "Settings", "FFStep", $g_iFFStep)
+                IniWrite($CONFIG_FILE, "Settings", "RWStep", $g_iRWStep)
                 _ReportStatus("Seek Step: Forward " & $g_iFFStep & "s, Backward " & $g_iRWStep & "s")
 
             Case $hDummyUp
@@ -2521,10 +2620,18 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
         EndSwitch
 
         Local $iCurState = _VLC_Direct_GetState()
-        If Not $bLoaded And ($iCurState = 3 Or $iCurState = 2 Or $iCurState = 5 Or $iCurState = 6 Or $iCurState = 7 Or TimerDiff($iLoadStartTime) > 30000) Then
+        If $iCurState = 2 Then ; Buffering
+            If GUICtrlRead($g_hStatusLabel) <> "Buffering..." Then GUICtrlSetData($g_hStatusLabel, "Buffering...")
+        ElseIf $iCurState = 3 And GUICtrlRead($g_hStatusLabel) = "Buffering..." Then
+            GUICtrlSetData($g_hStatusLabel, "Playing")
+        EndIf
+
+        If Not $bLoaded And ($iCurState = 3 Or $iCurState = 5 Or $iCurState = 6 Or $iCurState = 7 Or TimerDiff($iLoadStartTime) > 30000) Then
             If $hLoading <> 0 Then GUIDelete($hLoading)
             $hLoading = 0
             $bLoaded = True
+            DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0) ; Stop loading sound
+            If $iCurState = 3 Then GUICtrlSetData($g_hStatusLabel, "Playing")
         EndIf
 
         Local $iState = _VLC_Direct_GetState()
@@ -2557,6 +2664,7 @@ Func _PlayInternal($sUrl, $sTitle, $bAudioOnly = False, $hLoading = 0, $allowAut
     EndIf
 
     ; Cleanup
+    DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0) ; Stop loading sound if still playing
     _VLC_Direct_Stop()
     If IsHWnd($hPlayGui) Then GUIDelete($hPlayGui)
     $hPlayGui = 0
@@ -2795,6 +2903,79 @@ Func _NVDA_Speak($sText)
 
     Return $bNVDASuccess
 EndFunc
+
+Global $g_iLastSoundTime = 0
+Global $g_iSoundLock = 0
+Global $g_iLastHookTime = 0
+Global $g_iLastVkCode = 0
+Global $g_bIsSoundPlaying = False
+
+Global $g_iSoundLock = 0
+
+Func _GlobalSoundPlay($sFile, $sSoundSet)
+    If $sFile = "" Then Return
+
+    ; Khóa âm thanh 20ms thay vì 100ms để phản hồi nhanh hơn khi gõ nhanh
+    If TimerDiff($g_iSoundLock) < 20 Then Return
+    $g_iSoundLock = TimerInit()
+
+    Local $sFullPath = $sFile
+    If Not StringInStr($sFile, ":") Then $sFullPath = @ScriptDir & "\" & $sFile
+    If Not FileExists($sFullPath) Then Return
+
+    ; SND_ASYNC (0x0001) - Phát không chặn
+    ; SND_NODEFAULT (0x0002) - Không phát âm thanh hệ thống mặc định nếu file lỗi
+    ; SND_FILENAME (0x00020000) - $sFullPath là đường dẫn file
+    DllCall("winmm.dll", "bool", "PlaySoundW", "wstr", $sFullPath, "ptr", 0, "dword", 0x00020003)
+EndFunc
+Func _PlayTypingSound($vkCode)
+    If Not $g_bTypingSoundEnabled Then Return
+    
+    Local $bAllowed = False
+    If ($vkCode >= 48 And $vkCode <= 57) Or _ ; Digits 0-9
+       ($vkCode >= 65 And $vkCode <= 90) Or _ ; Letters A-Z
+       ($vkCode >= 96 And $vkCode <= 105) Or _ ; Numpad digits 0-9
+       ($vkCode >= 0xBA And $vkCode <= 0xC0) Or _ ; Punctuation: ;=,-./`
+       ($vkCode >= 0xDB And $vkCode <= 0xDE) Or _ ; Punctuation: [\]'
+       ($vkCode >= 106 And $vkCode <= 111) Or _ ; Numpad operators: *+,-./ (0x6A-0x6F)
+       ($vkCode = 0x20) Or ($vkCode = 0x08) Or ($vkCode = 0x2E) Then ; Space, Backspace, Delete
+        $bAllowed = True
+       EndIf
+    If Not $bAllowed Then Return
+
+    Local $sDir = @ScriptDir & "\sounds\" & $g_sTypingSoundSet & "\"
+    Local $sFile = ""
+
+    ; Logic riêng cho VDH_keyboard1/2: phát ngẫu nhiên type1-10.wav
+    If $g_sTypingSoundSet = "VDH_keyboard1" Or $g_sTypingSoundSet = "VDH_keyboard2" Then
+        If $vkCode = 0x08 Then
+            $sFile = $sDir & "delete.wav"
+        ElseIf $vkCode = 0x20 Then
+            $sFile = $sDir & "space.wav"
+        Else
+            $sFile = $sDir & "type" & Random(1, 10, 1) & ".wav"
+        EndIf
+    ; Logic chuẩn cho các bộ khác
+    Else
+        If $vkCode = 0x08 Then
+            $sFile = $sDir & "delete.wav"
+        ElseIf $vkCode = 0x20 Then
+            $sFile = $sDir & "space.wav"
+        Else
+            If FileExists($sDir & "typing.wav") Then
+                $sFile = $sDir & "typing.wav"
+            Else
+                Local $iRand = Random(1, 5, 1)
+                $sFile = $sDir & "typing_" & $iRand & ".wav"
+            EndIf
+        EndIf
+    EndIf
+
+    If FileExists($sFile) Then
+        _GlobalSoundPlay($sFile, $g_sTypingSoundSet)
+    EndIf
+EndFunc
+
 Func _ClearToolTip()
     If IsHWnd($hPlayGui) And $g_hStatusLabel <> 0 Then
         GUICtrlSetData($g_hStatusLabel, "")
@@ -3776,7 +3957,7 @@ Func _ShowSettings()
     Local $aAccelSettings[2][2] = [["^{TAB}", $g_hSettingsDummyNext], ["^+{TAB}", $g_hSettingsDummyPrev]]
     GUISetAccelerators($aAccelSettings, $g_hSettingsGui)
 
-    Local $aTabItems[4]
+    Local $aTabItems[5]
     ; --- Tab General ---
     $aTabItems[0] = GUICtrlCreateTabItem("General")
     GUICtrlCreateLabel("General Settings", 20, 50, 410, 20)
@@ -3793,10 +3974,6 @@ Func _ShowSettings()
 
     Local $chk_AutoDetect = GUICtrlCreateCheckbox("Automatically detect YouTube links in clipboard on launch", 30, 140, 380, 20)
     If $g_bAutoDetectLink Then GUICtrlSetState(-1, $GUI_CHECKED)
-    GUICtrlSetColor(-1, 0xFFFFFF)
-
-    Local $chk_VoiceAutoSearch = GUICtrlCreateCheckbox("Automatically search after voice input", 30, 170, 380, 20)
-    If $g_bVoiceAutoSearch Then GUICtrlSetState(-1, $GUI_CHECKED)
     GUICtrlSetColor(-1, 0xFFFFFF)
 
     ; --- Tab Player ---
@@ -3872,8 +4049,27 @@ Func _ShowSettings()
     Local $btn_ChangePath = GUICtrlCreateButton("Change Path", 30, 175, 180, 30)
     Local $btn_ResetPath = GUICtrlCreateButton("Reset to Default Directory", 220, 175, 190, 30)
 
+    ; --- Tab Search ---
+    $aTabItems[3] = GUICtrlCreateTabItem("Search")
+    GUICtrlCreateLabel("Search Settings", 20, 50, 410, 20)
+    GUICtrlSetFont(-1, 10, 800)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+
+    Local $chk_VoiceAutoSearch = GUICtrlCreateCheckbox("Automatically search after voice input", 30, 80, 380, 20)
+    If $g_bVoiceAutoSearch Then GUICtrlSetState(-1, $GUI_CHECKED)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+
+    Local $chk_TypingSound = GUICtrlCreateCheckbox("Enable typing sounds in search box", 30, 110, 380, 20)
+    If $g_bTypingSoundEnabled Then GUICtrlSetState(-1, $GUI_CHECKED)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+
+    GUICtrlCreateLabel("select typing sound:", 30, 140, 150, 20)
+    GUICtrlSetColor(-1, 0xFFFFFF)
+    Local $cbo_TypingSoundSet = GUICtrlCreateCombo("", 180, 135, 230, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetData(-1, "1blueSwitch|2redSwitch|3brownSwitche|iPhone|Samsung_Galaxy|VDH_keyboard1|VDH_keyboard2", $g_sTypingSoundSet)
+
     ; --- Tab Data ---
-    $aTabItems[3] = GUICtrlCreateTabItem("Data")
+    $aTabItems[4] = GUICtrlCreateTabItem("Data")
     GUICtrlCreateLabel("Configuration Backup & Restore", 20, 50, 410, 20)
     GUICtrlSetFont(-1, 10, 800)
     GUICtrlSetColor(-1, 0xFFFFFF)
@@ -3975,6 +4171,8 @@ Func _ShowSettings()
                 $g_bAutoStart = (GUICtrlRead($chk_AutoStart) = $GUI_CHECKED)
                 $g_bAutoDetectLink = (GUICtrlRead($chk_AutoDetect) = $GUI_CHECKED)
                 $g_bVoiceAutoSearch = (GUICtrlRead($chk_VoiceAutoSearch) = $GUI_CHECKED)
+                $g_bTypingSoundEnabled = (GUICtrlRead($chk_TypingSound) = $GUI_CHECKED)
+                $g_sTypingSoundSet = GUICtrlRead($cbo_TypingSoundSet)
                 $g_bSkipSilence = (GUICtrlRead($chk_SkipSilence) = $GUI_CHECKED)
                 $g_bContinueWatching = (GUICtrlRead($chk_ContinueWatching) = $GUI_CHECKED)
                 $g_iAnnouncementMode = _GUICtrlComboBox_GetCurSel($cbo_AnnouncementMode)
@@ -4014,6 +4212,8 @@ Func _ShowSettings()
                 IniWrite($CONFIG_FILE, "Settings", "DownloadPath", $g_sDownloadPath)
                 IniWrite($CONFIG_FILE, "Settings", "FFStep", String($g_iFFStep))
                 IniWrite($CONFIG_FILE, "Settings", "RWStep", String($g_iRWStep))
+                IniWrite($CONFIG_FILE, "Settings", "TypingSoundEnabled", $g_bTypingSoundEnabled ? "true" : "false")
+                IniWrite($CONFIG_FILE, "Settings", "TypingSoundSet", $g_sTypingSoundSet)
                 ; Handle Auto-start in Registry
                 Local $sRegKey = "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run"
                 If $g_bAutoStart Then

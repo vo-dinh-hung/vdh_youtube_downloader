@@ -105,6 +105,13 @@ In this tab there will be a number of options used for the music player:
 - Fast Forward Interval (Seconds).
 - Rewind Interval (Seconds).
 - Continue watching (Resume from last position)
+
+## Search tab
+
+In this tab you can customize search settings:
+
+- Automatically search after voice input.
+
 ## Data  tab
 
 In this tab there will be a few options related to configuration data:

@@ -1,3 +1,25 @@
+changes for version 1.9
+- new feature:
+  - Now the software will work smoother.
+  - contribution has been updated.
+  - readme has been updated.
+  - Now in the search box there will be keyboard typing sound to make your experience more intuitive.
+  - You can turn off the keyboard sound in the search tab and select the sound set as you like.
+  - Additionally we have supported some different keyboard sound sets to suit your needs.
+  - Added search tab in settings.
+  - Moved "Automatically search after voice input" from General tab to Search tab.
+  - update some sounds.
+  - The screen reader will now notify you after pressing ok in the live view.
+  - Upgraded voice search system.
+  - Removed redundant code to optimize the software.
+  - You can now open links in the description correctly. you can press enter on line have link.
+  - Added error dialog if you leave the input box blank.
+- fix bug:
+  - Fixed the error of not being able to press enter at the play a direct link button.
+  - Fixed intermittent error when rewinding.
+  - Fixed inconsistency in data loading during live view.
+  - Fixed data inconsistency between media player and settings.
+
 changes for version 1.8
 - new feature:
   - Completely removed markdown in update dialogs and view change logs for better reading.

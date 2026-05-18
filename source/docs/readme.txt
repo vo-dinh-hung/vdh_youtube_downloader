@@ -87,13 +87,12 @@ telegram.
 facebook.
 settings
 You can customize your favorite features in this settings section.
-General  tab
+General tab
 This tab will give you a few options:
 Automatically check for updates on startup.
 Start program automatically after login.
 Automatically detect YouTube links in clipboard on launch.
-Automatically search after voice input.
-Player  tab
+Player tab
 In this tab there will be a number of options used for the music player:
 Audio Output Device.
 Skip silence (Recommended only for music).
@@ -108,15 +107,18 @@ Do nothing
 Fast Forward Interval (Seconds).
 Rewind Interval (Seconds).
 Continue watching (Resume from last position)
-Data  tab
+Download tab:
+In this tab you can customize some actions:
+download path edit box read only.
+change path button.
+reset path to default button.
+Search tab
+In this tab you can customize search settings:
+Automatically search after voice input.
+Data tab
 In this tab there will be a few options related to configuration data:
 Backup Configuration.
 Restore Configuration.
-download tab:
-In this tab you can customize some actions:
-download pass edit box read only.
-change pass button.
-reset pass to default button.
 Contact Information:
 If you would like to provide feedback, you can contact me through the following methods:
 Phone: 0366934510
