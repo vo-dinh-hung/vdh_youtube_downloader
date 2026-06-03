@@ -37,6 +37,8 @@ While _Singleton("VDHYouTubeDownloaderApp", 1) = 0
 WEnd
 
 Global $hVLC_Dll = -1, $oVLC_Inst = 0, $oVLC_Player = 0
+Global $g_sAudioDeviceID = ""
+Global $sVLC_Path = ""
 
 Func _VLC_Cleanup()
     If $oVLC_Player <> 0 Then
@@ -219,9 +221,6 @@ Func _VLC_Direct_GetState()
     Return $aRet[0]
 EndFunc
 
-Global $sVLC_Path = @ScriptDir & "\lib\VLC"
-If @AutoItX64 Then $sVLC_Path = @ScriptDir & "\lib\VLC64"
-
 FileChangeDir(@ScriptDir)
 
 Local $aGlobalMsgs = [0x0100, 0x0101, 0x0102, 0x0104, 0x0105, 0x010D, 0x010E, 0x010F, 0x0281, 0x0282, 0x0283, 0x0284, 0x0285, 0x0286, 0x0288, 0x0290, 0x0291, 0x004A, 0x003D, 0x0302, 0x0303, 0x0304, 0x0305]
@@ -229,7 +228,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "1.9"
+Global $version = "2.0"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -254,7 +253,7 @@ Global $g_iAppVolume = 100 ; Thêm biến track Volume ảo lên tới 100%
 
 
 Global $mainform
-Global $edit, $cbo_dl_format, $btn_start_dl, $openbtn, $paste
+Global $cbo_dl_format, $btn_start_dl, $openbtn, $paste
 Global $linkedit, $play_btn, $online_play_btn
 Global $inp_search, $btn_search_go, $lst_results, $btn_search_hist
 Global $hCurrentSubGui = 0
@@ -308,13 +307,55 @@ Func _MigrateFiles()
 EndFunc
 _MigrateFiles()
 Global $g_bTypingSoundEnabled = IniRead($CONFIG_FILE, "Settings", "TypingSoundEnabled", "true") == "true"
+Global $g_sTypingSoundSet = IniRead($CONFIG_FILE, "Settings", "TypingSoundSet", "1blueSwitch")
+Global $g_sTypingSoundDir = @ScriptDir & "\sounds\" & $g_sTypingSoundSet & "\"
+Global $g_bTypingSoundRandom = FileExists($g_sTypingSoundDir & "typing_1.wav")
+Global $g_sSoundFile_Space = ""
+Global $g_sSoundFile_Delete = ""
+Global $g_sSoundFile_Typing = ""
+
+Func _ResolveTypingSounds()
+    $g_sTypingSoundDir = @ScriptDir & "\sounds\" & $g_sTypingSoundSet & "\"
+    $g_bTypingSoundRandom = FileExists($g_sTypingSoundDir & "typing_1.wav")
+    
+    ; Tìm file cho phím Space
+    If FileExists($g_sTypingSoundDir & "space.wav") Then
+        $g_sSoundFile_Space = $g_sTypingSoundDir & "space.wav"
+    ElseIf FileExists($g_sTypingSoundDir & "Space.wav") Then
+        $g_sSoundFile_Space = $g_sTypingSoundDir & "Space.wav"
+    Else
+        $g_sSoundFile_Space = ""
+    EndIf
+    
+    ; Tìm file cho phím Backspace/Delete
+    If FileExists($g_sTypingSoundDir & "delete.wav") Then
+        $g_sSoundFile_Delete = $g_sTypingSoundDir & "delete.wav"
+    ElseIf FileExists($g_sTypingSoundDir & "Delete.wav") Then
+        $g_sSoundFile_Delete = $g_sTypingSoundDir & "Delete.wav"
+    Else
+        $g_sSoundFile_Delete = ""
+    EndIf
+    
+    ; Tìm file cho phím thường
+    If FileExists($g_sTypingSoundDir & "typing.wav") Then
+        $g_sSoundFile_Typing = $g_sTypingSoundDir & "typing.wav"
+    ElseIf FileExists($g_sTypingSoundDir & "Typing.wav") Then
+        $g_sSoundFile_Typing = $g_sTypingSoundDir & "Typing.wav"
+    Else
+        $g_sSoundFile_Typing = ""
+    EndIf
+EndFunc
+
+_ResolveTypingSounds()
 Global $g_iLastSoundTime = 0
 Global $g_iSoundLock = 0
 Global $g_iLastHookTime = 0
 Global $g_iLastVkCode = 0
-Global $g_bIsSoundPlaying = False
-Global $g_sTypingSoundSet = IniRead($CONFIG_FILE, "Settings", "TypingSoundSet", "1blueSwitch")
 Global $g_bAutoUpdate = IniRead($CONFIG_FILE, "Settings", "AutoUpdate", "true") == "true"
+Global $g_iUpdateBytesRead = 0
+Global $g_iUpdateFileSize = 0
+Global $g_iUpdatePct = 0
+Global $g_sUpdateStatus = ""
 Global $g_bAutoStart = IniRead($CONFIG_FILE, "Settings", "AutoStart", "false") == "true"
 Global $g_bSkipSilence = IniRead($CONFIG_FILE, "Settings", "SkipSilence", "false") == "true"
 Global $g_iAnnouncementMode = Int(IniRead($CONFIG_FILE, "Settings", "AnnouncementMode", "0"))
@@ -342,6 +383,11 @@ $lding=GUICreate("loading",300,300)
 GUISetBkColor($COLOR_BLUE)
 GuiCtrlCreateLabel("Welcome to VDH Productions", 10, 25)
 GUISetState()
+
+Global $sVLC_Path = @ScriptDir & "\lib\VLC"
+If @AutoItX64 Then $sVLC_Path = @ScriptDir & "\lib\VLC64"
+_VLC_Direct_Init()
+
 SoundPlay(@ScriptDir & "\sounds\start.wav")
 Local $hStartTimer = TimerInit()
 While TimerDiff($hStartTimer) < 500
@@ -586,19 +632,34 @@ Func _ShowDownloader()
     GUISetBkColor($COLOR_BLUE)
 
     $g_hTabDL = GUICtrlCreateTab(10, 10, 380, 40)
-    GUICtrlCreateTabItem("YouTube")
-    GUICtrlCreateTabItem("Facebook")
-    GUICtrlCreateTabItem("TikTok")
-    GUICtrlCreateTabItem("Instagram")
-    GUICtrlCreateTabItem("SoundCloud")
+    Local $aTabNames[6] = ["YouTube", "Facebook", "TikTok", "Instagram", "SoundCloud", "Telegram"]
+    Local $aTabItems[6]
+    Local $g_aInpLinks[6]
+    For $i = 0 To 5
+        $aTabItems[$i] = GUICtrlCreateTabItem($aTabNames[$i])
+        GUICtrlCreateLabel("Enter the " & $aTabNames[$i] & " URL link here:", 10, 60, 380, 20)
+        GUICtrlSetColor(-1, 0xFFFFFF)
+        $g_aInpLinks[$i] = GUICtrlCreateInput("", 10, 85, 380, 20)
+        GUICtrlSetTip(-1, "Enter the " & $aTabNames[$i] & " video URL here")
+        _AllowUIPI($g_aInpLinks[$i])
+    Next
     GUICtrlCreateTabItem("") ; end tab
 
-    GUICtrlCreateLabel("Enter the URL link of the video you want to download here:", 10, 60, 380, 20)
-    GUICtrlSetColor(-1, 0xFFFFFF)
-    $edit = GUICtrlCreateInput("", 10, 85, 380, 20)
-    GUICtrlSetTip(-1, "Enter the video URL here")
     Local $clip = ClipGet()
-    If StringInStr($clip, "youtube.com") Or StringInStr($clip, "youtu.be") Then GUICtrlSetData($edit, $clip)
+    Local $iDetectedTab = -1
+    For $i = 0 To 5
+        If _IsUrlMatchTab($clip, $i) Then
+            $iDetectedTab = $i
+            ExitLoop
+        EndIf
+    Next
+
+    If $iDetectedTab <> -1 Then
+        GUICtrlSetState($aTabItems[$iDetectedTab], $GUI_SHOW)
+        GUICtrlSetData($g_aInpLinks[$iDetectedTab], $clip)
+    Else
+        GUICtrlSetState($aTabItems[0], $GUI_SHOW)
+    EndIf
 
     $paste = GUICtrlCreateButton("Paste Link (Alt+P)", 320, 115, 70, 20)
 
@@ -632,8 +693,11 @@ Func _ShowDownloader()
 
     GUISetState(@SW_SHOW, $g_hGuiDL)
     _AllowUIPI($g_hGuiDL)
-    _AllowUIPI($edit)
-    ControlFocus($g_hGuiDL, "", $edit)
+    If $iDetectedTab <> -1 Then
+        ControlFocus($g_hGuiDL, "", $g_aInpLinks[$iDetectedTab])
+    Else
+        ControlFocus($g_hGuiDL, "", $g_aInpLinks[0])
+    EndIf
 
     GUIRegisterMsg($WM_ACTIVATE, "_Downloader_WM_ACTIVATE")
     _Downloader_ToggleHotKeys(True)
@@ -648,12 +712,15 @@ Func _ShowDownloader()
                 GUISetState(@SW_SHOW, $mainform)
                 ExitLoop
 
+            Case $g_hTabDL
+                ControlFocus($g_hGuiDL, "", $g_hTabDL)
+
             Case $g_hDummyNextDL
                 Local $hTabHandle = GUICtrlGetHandle($g_hTabDL)
                 Local $iCount = _GUICtrlTab_GetItemCount($hTabHandle)
                 Local $iCur = _GUICtrlTab_GetCurSel($hTabHandle)
                 Local $iNext = ($iCur + 1 >= $iCount) ? 0 : $iCur + 1
-                _GUICtrlTab_SetCurSel($hTabHandle, $iNext)
+                GUICtrlSetState($aTabItems[$iNext], $GUI_SHOW)
                 ControlFocus($g_hGuiDL, "", $g_hTabDL)
 
             Case $g_hDummyPrevDL
@@ -661,11 +728,12 @@ Func _ShowDownloader()
                 Local $iCount = _GUICtrlTab_GetItemCount($hTabHandle)
                 Local $iCur = _GUICtrlTab_GetCurSel($hTabHandle)
                 Local $iPrev = ($iCur - 1 < 0) ? $iCount - 1 : $iCur - 1
-                _GUICtrlTab_SetCurSel($hTabHandle, $iPrev)
+                GUICtrlSetState($aTabItems[$iPrev], $GUI_SHOW)
                 ControlFocus($g_hGuiDL, "", $g_hTabDL)
 
             Case $paste
-                GUICtrlSetData($edit, ClipGet())
+                Local $iCur = _GUICtrlTab_GetCurSel(GUICtrlGetHandle($g_hTabDL))
+                GUICtrlSetData($g_aInpLinks[$iCur], ClipGet())
 
             Case $chk_custom_name
                 If GUICtrlRead($chk_custom_name) = $GUI_CHECKED Then
@@ -678,10 +746,18 @@ Func _ShowDownloader()
                 ShellExecute($g_sDownloadPath)
 
             Case $btn_start_dl
-                Local $url = GUICtrlRead($edit)
+                Local $iCurTab = _GUICtrlTab_GetCurSel(GUICtrlGetHandle($g_hTabDL))
+                Local $url = GUICtrlRead($g_aInpLinks[$iCurTab])
                 If $url = "" Then
                     MsgBox(16, "Error", "Please enter the URL!")
                 Else
+                    Local $iCurTab = _GUICtrlTab_GetCurSel(GUICtrlGetHandle($g_hTabDL))
+                    If Not _IsUrlMatchTab($url, $iCurTab) Then
+                        Local $sTabName = _GUICtrlTab_GetItemText(GUICtrlGetHandle($g_hTabDL), $iCurTab)
+                        MsgBox(16, "Error", "The current link is not supported in the " & $sTabName & " tab. Please switch to the correct tab or use a valid link.")
+                        ContinueLoop
+                    EndIf
+
                     Local $sTxt = GUICtrlRead($cbo_dl_format)
                     Local $sFmt = ""
 
@@ -802,9 +878,9 @@ Func _ShowPlayer()
     WEnd
 EndFunc
 
-Global $g_iLastVkCode = 0
-
 Func _SearchEditProc($hWnd, $iMsg, $wParam, $lParam)
+    Local $aRet = DllCall("user32.dll", "lresult", "CallWindowProcW", "ptr", $g_pOldSearchEditProc, "hwnd", $hWnd, "uint", $iMsg, "wparam", $wParam, "lparam", $lParam)
+    
     If $iMsg = 0x0100 Then ; WM_KEYDOWN
         If BitAND($lParam, 0x40000000) = 0 Then
             ; Chỉ phát nếu phím khác phím cũ HOẶC quá 50ms kể từ lần phát cuối
@@ -818,7 +894,7 @@ Func _SearchEditProc($hWnd, $iMsg, $wParam, $lParam)
             EndIf
         EndIf
     EndIf
-    Local $aRet = DllCall("user32.dll", "lresult", "CallWindowProcW", "ptr", $g_pOldSearchEditProc, "hwnd", $hWnd, "uint", $iMsg, "wparam", $wParam, "lparam", $lParam)
+    
     Return $aRet[0]
 EndFunc
 
@@ -1169,6 +1245,10 @@ Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
                             _PlayLoop($iSel, False) ; Video
                         EndIf
                     EndIf
+                ElseIf ControlGetHandle($hResultsGui, "", ControlGetFocus($hResultsGui)) = GUICtrlGetHandle($btn_return_main) Then
+                    GUIDelete($hResultsGui)
+                    $hResultsGui = 0
+                    Return "RETURN_MAIN"
                 EndIf
             Case $hDummyHomeResults
                 _GUICtrlListBox_SetCurSel($lst_results, 0)
@@ -2832,6 +2912,16 @@ Func _FormatTime($fSeconds)
     EndIf
 EndFunc
 
+Func _FormatBytes($iBytes)
+    Local $aUnits = ["Bytes", "KB", "MB", "GB", "TB"]
+    Local $i = 0
+    While $iBytes >= 1024 And $i < 4
+        $iBytes /= 1024
+        $i += 1
+    WEnd
+    Return Round($iBytes, 2) & " " & $aUnits[$i]
+EndFunc
+
 Func online_play($url)
     ShellExecute($url)
 EndFunc
@@ -2904,33 +2994,21 @@ Func _NVDA_Speak($sText)
     Return $bNVDASuccess
 EndFunc
 
-Global $g_iLastSoundTime = 0
-Global $g_iSoundLock = 0
-Global $g_iLastHookTime = 0
-Global $g_iLastVkCode = 0
-Global $g_bIsSoundPlaying = False
-
-Global $g_iSoundLock = 0
-
 Func _GlobalSoundPlay($sFile, $sSoundSet)
     If $sFile = "" Then Return
 
-    ; Khóa âm thanh 20ms thay vì 100ms để phản hồi nhanh hơn khi gõ nhanh
+    ; Khóa âm thanh 20ms để phản hồi nhanh hơn khi gõ nhanh
     If TimerDiff($g_iSoundLock) < 20 Then Return
     $g_iSoundLock = TimerInit()
 
-    Local $sFullPath = $sFile
-    If Not StringInStr($sFile, ":") Then $sFullPath = @ScriptDir & "\" & $sFile
-    If Not FileExists($sFullPath) Then Return
-
-    ; SND_ASYNC (0x0001) - Phát không chặn
-    ; SND_NODEFAULT (0x0002) - Không phát âm thanh hệ thống mặc định nếu file lỗi
-    ; SND_FILENAME (0x00020000) - $sFullPath là đường dẫn file
-    DllCall("winmm.dll", "bool", "PlaySoundW", "wstr", $sFullPath, "ptr", 0, "dword", 0x00020003)
+    ; SND_ASYNC (0x0001) | SND_NODEFAULT (0x0002) | SND_FILENAME (0x00020000)
+    DllCall("winmm.dll", "bool", "PlaySoundW", "wstr", $sFile, "ptr", 0, "dword", 0x00020003)
 EndFunc
+
 Func _PlayTypingSound($vkCode)
     If Not $g_bTypingSoundEnabled Then Return
     
+    ; Phân loại phím để tránh phát âm thanh cho phím chức năng không mong muốn
     Local $bAllowed = False
     If ($vkCode >= 48 And $vkCode <= 57) Or _ ; Digits 0-9
        ($vkCode >= 65 And $vkCode <= 90) Or _ ; Letters A-Z
@@ -2938,42 +3016,29 @@ Func _PlayTypingSound($vkCode)
        ($vkCode >= 0xBA And $vkCode <= 0xC0) Or _ ; Punctuation: ;=,-./`
        ($vkCode >= 0xDB And $vkCode <= 0xDE) Or _ ; Punctuation: [\]'
        ($vkCode >= 106 And $vkCode <= 111) Or _ ; Numpad operators: *+,-./ (0x6A-0x6F)
-       ($vkCode = 0x20) Or ($vkCode = 0x08) Or ($vkCode = 0x2E) Then ; Space, Backspace, Delete
+       ($vkCode = 0x08) Or ($vkCode = 0x20) Or ($vkCode = 0x2E) Then ; Backspace, Space, Delete
         $bAllowed = True
-       EndIf
+    EndIf
+    
     If Not $bAllowed Then Return
 
-    Local $sDir = @ScriptDir & "\sounds\" & $g_sTypingSoundSet & "\"
     Local $sFile = ""
-
-    ; Logic riêng cho VDH_keyboard1/2: phát ngẫu nhiên type1-10.wav
-    If $g_sTypingSoundSet = "VDH_keyboard1" Or $g_sTypingSoundSet = "VDH_keyboard2" Then
-        If $vkCode = 0x08 Then
-            $sFile = $sDir & "delete.wav"
-        ElseIf $vkCode = 0x20 Then
-            $sFile = $sDir & "space.wav"
-        Else
-            $sFile = $sDir & "type" & Random(1, 10, 1) & ".wav"
-        EndIf
-    ; Logic chuẩn cho các bộ khác
-    Else
-        If $vkCode = 0x08 Then
-            $sFile = $sDir & "delete.wav"
-        ElseIf $vkCode = 0x20 Then
-            $sFile = $sDir & "space.wav"
-        Else
-            If FileExists($sDir & "typing.wav") Then
-                $sFile = $sDir & "typing.wav"
+    Switch $vkCode
+        Case 0x08, 0x2E ; Backspace, Delete
+            $sFile = $g_sSoundFile_Delete
+        Case 0x20 ; Space
+            $sFile = $g_sSoundFile_Space
+        Case Else
+            If $g_sTypingSoundSet = "VDH_keyboard1" Or $g_sTypingSoundSet = "VDH_keyboard2" Then
+                $sFile = $g_sTypingSoundDir & "type" & Random(1, 10, 1) & ".wav"
+            ElseIf $g_bTypingSoundRandom Then
+                $sFile = $g_sTypingSoundDir & "typing_" & Random(1, 5, 1) & ".wav"
             Else
-                Local $iRand = Random(1, 5, 1)
-                $sFile = $sDir & "typing_" & $iRand & ".wav"
+                $sFile = $g_sSoundFile_Typing
             EndIf
-        EndIf
-    EndIf
+    EndSwitch
 
-    If FileExists($sFile) Then
-        _GlobalSoundPlay($sFile, $g_sTypingSoundSet)
-    EndIf
+    _GlobalSoundPlay($sFile, $g_sTypingSoundSet)
 EndFunc
 
 Func _ClearToolTip()
@@ -3605,10 +3670,36 @@ Func _Check_YTDLP_Update()
             Local $iMsg = MsgBox(36, "Update Available", $sVerInfo & @CRLF & @CRLF & _
                                      "Do you want to download it now?")
             If $iMsg = 6 Then
+                If _VLC_Direct_Init() Then
+                    _VLC_Direct_Play("file:///" & StringReplace(@ScriptDir & "\sounds\updating_yt-dlp.wav", "\", "/"))
+                    _VLC_Direct_SetVolume($g_iAppVolume)
+                Else
+                    DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\updating_yt-dlp.wav", "ptr", 0, "dword", 0x0009)
+                EndIf
+
                 $downloadtext = "please wait..."
                 $downloadGui = GuiCreate("downloading update...", 400, 100, -1, -1)
                 GuiSetBkColor($COLOR_WHITE)
                 GuiCtrlCreateLabel($downloadtext, 40, 40)
+                
+                Local $hDummySpaceUpdate = GUICtrlCreateDummy()
+                Local $hDummyHUpdate = GUICtrlCreateDummy()
+                Local $hDummyPgUpUpdate = GUICtrlCreateDummy()
+                Local $hDummyPgDnUpdate = GUICtrlCreateDummy()
+                Local $hDummy1Update = GUICtrlCreateDummy()
+                Local $hDummy2Update = GUICtrlCreateDummy()
+                Local $hDummy3Update = GUICtrlCreateDummy()
+                Local $aAccelUpdate[7][2] = [ _
+                    ["{SPACE}", $hDummySpaceUpdate], _
+                    ["h", $hDummyHUpdate], _
+                    ["{PGUP}", $hDummyPgUpUpdate], _
+                    ["{PGDN}", $hDummyPgDnUpdate], _
+                    ["1", $hDummy1Update], _
+                    ["2", $hDummy2Update], _
+                    ["3", $hDummy3Update] _
+                ]
+                GUISetAccelerators($aAccelUpdate, $downloadGui)
+
                 GuiSetState(@SW_SHOW, $downloadGui)
                 Local $sDownloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
                 DirCreate(@ScriptDir & "\lib")
@@ -3616,20 +3707,48 @@ Func _Check_YTDLP_Update()
                 Local $sSavePathFinal = @ScriptDir & "\lib\yt-dlp.exe"
 
                 ProgressOn("Downloading Update", "Please wait while downloading...", "0%")
-
-                DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\updating_yt-dlp.wav", "ptr", 0, "dword", 0x0009)
+                $g_sUpdateStatus = "downloading"
+                $g_iUpdatePct = 0
 
                 Local $hDownload = InetGet($sDownloadURL, $sSavePathTemp, 1, 1)
 
                 Do
-                    GUIGetMsg()
+                    Local $msg = GUIGetMsg()
+                    Select
+                        Case $msg = $hDummySpaceUpdate
+                            _ReportStatus("Downloaded " & $g_iUpdatePct & "%")
+                        Case $msg = $hDummyHUpdate
+                            _ReportStatus($g_sUpdateStatus)
+                        Case $msg = $hDummyPgUpUpdate
+                            $g_iAppVolume += 5
+                            If $g_iAppVolume > 100 Then $g_iAppVolume = 100
+                            _VLC_Direct_SetVolume($g_iAppVolume)
+                            _ReportStatus("Volume: " & $g_iAppVolume & "%")
+                        Case $msg = $hDummyPgDnUpdate
+                            $g_iAppVolume -= 5
+                            If $g_iAppVolume < 0 Then $g_iAppVolume = 0
+                            _VLC_Direct_SetVolume($g_iAppVolume)
+                            _ReportStatus("Volume: " & $g_iAppVolume & "%")
+                        Case $msg = $hDummy1Update
+                            _ReportStatus("File size: " & _FormatBytes($g_iUpdateFileSize))
+                        Case $msg = $hDummy2Update
+                            _ReportStatus("Total downloaded: " & _FormatBytes($g_iUpdateBytesRead))
+                        Case $msg = $hDummy3Update
+                            _ReportStatus("Total remaining: " & _FormatBytes($g_iUpdateFileSize - $g_iUpdateBytesRead))
+                    EndSelect
+                    
                     Sleep(10)
-                    Local $iBytesRead = InetGetInfo($hDownload, 0)
-                    Local $iFileSize = InetGetInfo($hDownload, 1)
+                    ; Tự động phát lại nhạc nếu kết thúc (Lặp lại)
+                    If _VLC_Direct_GetState() = 6 Then ; 6 = Ended
+                        _VLC_Direct_Play("file:///" & StringReplace(@ScriptDir & "\sounds\updating_yt-dlp.wav", "\", "/"))
+                        _VLC_Direct_SetVolume($g_iAppVolume)
+                    EndIf
+                    $g_iUpdateBytesRead = InetGetInfo($hDownload, 0)
+                    $g_iUpdateFileSize = InetGetInfo($hDownload, 1)
 
-                    If $iFileSize > 0 Then
-                        Local $iPct = Round(($iBytesRead / $iFileSize) * 100)
-                        ProgressSet($iPct, $iPct & "% complete")
+                    If $g_iUpdateFileSize > 0 Then
+                        $g_iUpdatePct = Round(($g_iUpdateBytesRead / $g_iUpdateFileSize) * 100)
+                        ProgressSet($g_iUpdatePct, $g_iUpdatePct & "% complete")
                     Else
                         ProgressSet(0, "Connecting...")
                     EndIf
@@ -3639,6 +3758,7 @@ Func _Check_YTDLP_Update()
                 Local $bSuccess = InetGetInfo($hDownload, 3)
                 Local $iError = InetGetInfo($hDownload, 4)
                 InetClose($hDownload)
+                _VLC_Direct_Stop()
                 DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
 
                 ProgressOff()
@@ -3797,29 +3917,83 @@ Func _CheckGithubUpdate($bSilent = False)
             GUIDelete($hUpdateGUI)
 
             If $iUpdateAction = 1 Then
+                If _VLC_Direct_Init() Then
+                    _VLC_Direct_Play("file:///" & StringReplace(@ScriptDir & "\sounds\updating.wav", "\", "/"))
+                    _VLC_Direct_SetVolume($g_iAppVolume)
+                Else
+                    DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\updating.wav", "ptr", 0, "dword", 0x0009)
+                EndIf
+
                 $downloadtext = "please wait"
                 $downloadGui = GuiCreate("downloading update", 400, 400, -1, -1)
                 GuiSetBkColor($COLOR_WHITE)
                 GuiCtrlCreateLabel($downloadtext, 40, 60)
+
+                Local $hDummySpaceUpdate = GUICtrlCreateDummy()
+                Local $hDummyHUpdate = GUICtrlCreateDummy()
+                Local $hDummyPgUpUpdate = GUICtrlCreateDummy()
+                Local $hDummyPgDnUpdate = GUICtrlCreateDummy()
+                Local $hDummy1Update = GUICtrlCreateDummy()
+                Local $hDummy2Update = GUICtrlCreateDummy()
+                Local $hDummy3Update = GUICtrlCreateDummy()
+                Local $aAccelUpdate[7][2] = [ _
+                    ["{SPACE}", $hDummySpaceUpdate], _
+                    ["h", $hDummyHUpdate], _
+                    ["{PGUP}", $hDummyPgUpUpdate], _
+                    ["{PGDN}", $hDummyPgDnUpdate], _
+                    ["1", $hDummy1Update], _
+                    ["2", $hDummy2Update], _
+                    ["3", $hDummy3Update] _
+                ]
+                GUISetAccelerators($aAccelUpdate, $downloadGui)
+
                 GuiSetState(@SW_SHOW, $downloadGui)
                 Local $sDownloadURL = "https://github.com/vo-dinh-hung/vdh_youtube_downloader/releases/latest/download/vdh_youtube_downloader.zip"
                 Local $sSavePath = @ScriptDir & "\vdh_youtube_downloader.zip"
 
                 ProgressOn("Downloading Update", "Please wait while downloading...", "0%")
-
-                DllCall("winmm.dll", "int", "PlaySoundW", "wstr", @ScriptDir & "\sounds\updating.wav", "ptr", 0, "dword", 0x0009)
+                $g_sUpdateStatus = "downloading"
+                $g_iUpdatePct = 0
 
                 Local $hDownload = InetGet($sDownloadURL, $sSavePath, 1, 1)
 
                 Do
-                    GUIGetMsg()
-                    Sleep(100)
-                    Local $iBytesRead = InetGetInfo($hDownload, 0)
-                    Local $iFileSize = InetGetInfo($hDownload, 1)
+                    Local $msg = GUIGetMsg()
+                    Select
+                        Case $msg = $hDummySpaceUpdate
+                            _ReportStatus("Downloaded " & $g_iUpdatePct & "%")
+                        Case $msg = $hDummyHUpdate
+                            _ReportStatus($g_sUpdateStatus)
+                        Case $msg = $hDummyPgUpUpdate
+                            $g_iAppVolume += 5
+                            If $g_iAppVolume > 100 Then $g_iAppVolume = 100
+                            _VLC_Direct_SetVolume($g_iAppVolume)
+                            _ReportStatus("Volume: " & $g_iAppVolume & "%")
+                        Case $msg = $hDummyPgDnUpdate
+                            $g_iAppVolume -= 5
+                            If $g_iAppVolume < 0 Then $g_iAppVolume = 0
+                            _VLC_Direct_SetVolume($g_iAppVolume)
+                            _ReportStatus("Volume: " & $g_iAppVolume & "%")
+                        Case $msg = $hDummy1Update
+                            _ReportStatus("File size: " & _FormatBytes($g_iUpdateFileSize))
+                        Case $msg = $hDummy2Update
+                            _ReportStatus("Total downloaded: " & _FormatBytes($g_iUpdateBytesRead))
+                        Case $msg = $hDummy3Update
+                            _ReportStatus("Total remaining: " & _FormatBytes($g_iUpdateFileSize - $g_iUpdateBytesRead))
+                    EndSelect
 
-                    If $iFileSize > 0 Then
-                        Local $iPct = Round(($iBytesRead / $iFileSize) * 100)
-                        ProgressSet($iPct, $iPct & "% complete")
+                    Sleep(10)
+                    ; Tự động phát lại nhạc nếu kết thúc (Lặp lại)
+                    If _VLC_Direct_GetState() = 6 Then ; 6 = Ended
+                        _VLC_Direct_Play("file:///" & StringReplace(@ScriptDir & "\sounds\updating.wav", "\", "/"))
+                        _VLC_Direct_SetVolume($g_iAppVolume)
+                    EndIf
+                    $g_iUpdateBytesRead = InetGetInfo($hDownload, 0)
+                    $g_iUpdateFileSize = InetGetInfo($hDownload, 1)
+
+                    If $g_iUpdateFileSize > 0 Then
+                        $g_iUpdatePct = Round(($g_iUpdateBytesRead / $g_iUpdateFileSize) * 100)
+                        ProgressSet($g_iUpdatePct, $g_iUpdatePct & "% complete")
                     Else
                         ProgressSet(0, "Connecting...")
                     EndIf
@@ -3829,8 +4003,9 @@ Func _CheckGithubUpdate($bSilent = False)
                 Local $bSuccess = InetGetInfo($hDownload, 3)
                 Local $iError = InetGetInfo($hDownload, 4)
                 InetClose($hDownload)
-
+                _VLC_Direct_Stop()
                 DllCall("winmm.dll", "int", "PlaySoundW", "ptr", 0, "ptr", 0, "dword", 0)
+
 
                 ProgressOff()
                 GuiDelete($downloadGui)
@@ -4214,6 +4389,7 @@ Func _ShowSettings()
                 IniWrite($CONFIG_FILE, "Settings", "RWStep", String($g_iRWStep))
                 IniWrite($CONFIG_FILE, "Settings", "TypingSoundEnabled", $g_bTypingSoundEnabled ? "true" : "false")
                 IniWrite($CONFIG_FILE, "Settings", "TypingSoundSet", $g_sTypingSoundSet)
+                _ResolveTypingSounds()
                 ; Handle Auto-start in Registry
                 Local $sRegKey = "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run"
                 If $g_bAutoStart Then
@@ -5315,4 +5491,23 @@ Func contribute()
                 ExitLoop
         EndSwitch
     WEnd
+EndFunc
+
+Func _IsUrlMatchTab($sUrl, $iTab)
+    Local $sPattern = ""
+    Switch $iTab
+        Case 0 ; YouTube
+            Return StringInStr($sUrl, "youtube.com") Or StringInStr($sUrl, "youtu.be")
+        Case 1 ; Facebook
+            Return StringInStr($sUrl, "facebook.com") Or StringInStr($sUrl, "fb.watch")
+        Case 2 ; TikTok
+            Return StringInStr($sUrl, "tiktok.com")
+        Case 3 ; Instagram
+            Return StringInStr($sUrl, "instagram.com")
+        Case 4 ; SoundCloud
+            Return StringInStr($sUrl, "soundcloud.com")
+        Case 5 ; Telegram
+            Return StringInStr($sUrl, "t.me")
+    EndSwitch
+    Return False
 EndFunc

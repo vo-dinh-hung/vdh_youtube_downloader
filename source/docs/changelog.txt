@@ -1,3 +1,16 @@
+changes for version 2.0
+- new feature:
+  - now in update interface you can press the number keys 1 to 3 the screen reader will tell: File size, Total downloaded and Total remaining.
+  - has applied a smart change mechanism so that when you switch the keystroke sound it will always be played correctly.
+  - Now you can download videos from telegram.
+  - has implemented a rigorous link checking system to help you know exactly what type of links are supported. If you paste an invalid link, a warning will appear that it is not supported.
+  - Improved the update download interface with many new actions.
+  - You can now increase or decrease the volume of your music while the update is being downloaded.
+- fix bug:
+  - Fixed a very dangerous error where all input boxes in the download from link section contained the same link.
+  - Fixed the issue of not being able to press enter at the back button in the search results interface.
+  - Resolved the issue of slow keystrokes when accompanied by sound.
+
 changes for version 1.9
 - new feature:
   - Now the software will work smoother.
@@ -14,6 +27,7 @@ changes for version 1.9
   - Removed redundant code to optimize the software.
   - You can now open links in the description correctly. you can press enter on line have link.
   - Added error dialog if you leave the input box blank.
+
 - fix bug:
   - Fixed the error of not being able to press enter at the play a direct link button.
   - Fixed intermittent error when rewinding.
