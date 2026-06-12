@@ -1,3 +1,17 @@
+changes for version 2.1
+- new feature:
+  - Now the old configuration will still be preserved when updating.
+  - The software will now call yt-dlp directly to ensure any issues are always resolved.
+  - update sounds
+  - Removed video downloading support for Telegram due to some unreliable issues.
+  - Improved search algorithm to provide the most accurate results.
+  - Added few new options in search filter.
+  - Upgraded the description reading system to remove blank output for videos without descriptions.
+  - The comment reader system has also been upgraded to resolve empty data output.
+- fix bug:
+  - Fixed an issue where more search results could not be loaded from the results list.
+  - Fixed an error that did not save the downloaded file correctly to the specified path.
+
 changes for version 2.0
 - new feature:
   - now in update interface you can press the number keys 1 to 3 the screen reader will tell: File size, Total downloaded and Total remaining.

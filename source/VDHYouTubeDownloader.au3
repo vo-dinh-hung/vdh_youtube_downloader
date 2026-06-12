@@ -228,7 +228,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "2.0"
+Global $version = "2.1"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -256,6 +256,7 @@ Global $mainform
 Global $cbo_dl_format, $btn_start_dl, $openbtn, $paste
 Global $linkedit, $play_btn, $online_play_btn
 Global $inp_search, $btn_search_go, $lst_results, $btn_search_hist
+Global $hDummyLoadMore = 0
 Global $hCurrentSubGui = 0
 Global $hResultsGui = 0
 Global $hFavoritesGui = 0
@@ -292,20 +293,25 @@ Global $HISTORY_FILE = $SETTINGS_DIR & "\watch_history.dat"
 Global $SEARCH_HISTORY_FILE = $SETTINGS_DIR & "\search_history.dat"
 Global $CONFIG_FILE = $SETTINGS_DIR & "\settings.ini"
 Global $COLLECTIONS_DIR = $SETTINGS_DIR & "\Collections"
-If Not FileExists($COLLECTIONS_DIR) Then DirCreate($COLLECTIONS_DIR)
+Global $PLAYBACK_POSITIONS_FILE = $SETTINGS_DIR & "\playback_positions.dat"
 
 Func _MigrateFiles()
-    Local $aFilesToMove[3] = ["favorites.dat", "watch_history.dat", "search_history.dat"]
+    Local $aFilesToMove[5] = ["settings.ini", "favorites.dat", "watch_history.dat", "search_history.dat", "playback_positions.dat"]
     For $sFile In $aFilesToMove
         If FileExists(@ScriptDir & "\" & $sFile) And Not FileExists($SETTINGS_DIR & "\" & $sFile) Then
-            FileMove(@ScriptDir & "\" & $sFile, $SETTINGS_DIR & "\" & $sFile)
+            FileMove(@ScriptDir & "\" & $sFile, $SETTINGS_DIR & "\" & $sFile, 1)
         EndIf
     Next
     If FileExists(@ScriptDir & "\history.dat") And Not FileExists($HISTORY_FILE) Then
-        FileMove(@ScriptDir & "\history.dat", $HISTORY_FILE)
+        FileMove(@ScriptDir & "\history.dat", $HISTORY_FILE, 1)
+    EndIf
+    If FileExists(@ScriptDir & "\Collections") And Not FileExists($COLLECTIONS_DIR) Then
+        DirMove(@ScriptDir & "\Collections", $COLLECTIONS_DIR, 1)
     EndIf
 EndFunc
 _MigrateFiles()
+
+If Not FileExists($COLLECTIONS_DIR) Then DirCreate($COLLECTIONS_DIR)
 Global $g_bTypingSoundEnabled = IniRead($CONFIG_FILE, "Settings", "TypingSoundEnabled", "true") == "true"
 Global $g_sTypingSoundSet = IniRead($CONFIG_FILE, "Settings", "TypingSoundSet", "1blueSwitch")
 Global $g_sTypingSoundDir = @ScriptDir & "\sounds\" & $g_sTypingSoundSet & "\"
@@ -632,10 +638,10 @@ Func _ShowDownloader()
     GUISetBkColor($COLOR_BLUE)
 
     $g_hTabDL = GUICtrlCreateTab(10, 10, 380, 40)
-    Local $aTabNames[6] = ["YouTube", "Facebook", "TikTok", "Instagram", "SoundCloud", "Telegram"]
-    Local $aTabItems[6]
-    Local $g_aInpLinks[6]
-    For $i = 0 To 5
+    Local $aTabNames[5] = ["YouTube", "Facebook", "TikTok", "Instagram", "SoundCloud"]
+    Local $aTabItems[5]
+    Local $g_aInpLinks[5]
+    For $i = 0 To 4
         $aTabItems[$i] = GUICtrlCreateTabItem($aTabNames[$i])
         GUICtrlCreateLabel("Enter the " & $aTabNames[$i] & " URL link here:", 10, 60, 380, 20)
         GUICtrlSetColor(-1, 0xFFFFFF)
@@ -647,7 +653,7 @@ Func _ShowDownloader()
 
     Local $clip = ClipGet()
     Local $iDetectedTab = -1
-    For $i = 0 To 5
+    For $i = 0 To 4
         If _IsUrlMatchTab($clip, $i) Then
             $iDetectedTab = $i
             ExitLoop
@@ -799,8 +805,10 @@ Func _ShowDownloader()
 
                     GUICtrlSetState($btn_start_dl, $GUI_DISABLE)
                     Local $sFinalDownloadPath = $g_sDownloadPath
-                    If StringRight($sFinalDownloadPath, 1) <> "\" Then $sFinalDownloadPath &= "\"
-                    Local $iPidDL = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & $sExtraArgs & ' -o "' & $sFinalDownloadPath & $sOutTemplate & '" -- "' & $url & '""', @ScriptDir, @SW_SHOW)
+                    If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
+                    Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
+                    Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' ' & $sExtraArgs & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & $sOutTemplate & '" -- "' & $url & '"'
+                    Local $iPidDL = Run($sCmd, @ScriptDir, @SW_SHOW)
                     While ProcessExists($iPidDL)
                         Local $m = GUIGetMsg()
                         If $m = $GUI_EVENT_CLOSE Then
@@ -915,8 +923,8 @@ Func _ShowSearch()
 
     GUICtrlCreateLabel("Filter:", 10, 50, 80, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
-    Local $cbo_filter = GUICtrlCreateCombo("No Filter", 100, 47, 210, 20, $CBS_DROPDOWNLIST)
-    GUICtrlSetData(-1, "Channels|Playlist|lives|Shorts|upload date|Most viewed")
+    Local $cbo_filter = GUICtrlCreateCombo($g_sSearchFilter, 100, 47, 210, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetData(-1, "No Filter|Video|Channels|Playlist|lives|Shorts|This Week|This Month|4K|upload date|Most viewed|Rating")
 
     $btn_search_go = GUICtrlCreateButton("Search (Alt+S)", 320, 10, 70, 25)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
@@ -1186,6 +1194,15 @@ Func _RemoveSearchHistoryItem($sKeyword)
     EndIf
 EndFunc
 
+Func _SearchResults_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
+    Local $iID = BitAND($wParam, 0x0000FFFF)
+    Local $iCode = BitShift($wParam, 16)
+    If $iID = $lst_results And $iCode = 1 Then ; 1 is LBN_SELCHANGE
+        If $hDummyLoadMore <> 0 Then GUICtrlSendToDummy($hDummyLoadMore)
+    EndIf
+    Return $GUI_RUNDEFMSG
+EndFunc
+
 Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
     GUISetState(@SW_HIDE, $hCurrentSubGui)
 
@@ -1211,7 +1228,9 @@ Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
     ]
     GUISetAccelerators($aAccel, $hResultsGui)
 
+    $hDummyLoadMore = GUICtrlCreateDummy()
     GUISetState(@SW_SHOW, $hResultsGui)
+    GUIRegisterMsg($WM_COMMAND, "_SearchResults_WM_COMMAND")
 
     _SearchYouTube($sKeyword, False)
 
@@ -1219,8 +1238,12 @@ Func _ShowSearchResultsWindow($sKeyword, $sFilter = "No Filter")
         Local $nMsg = GUIGetMsg()
 
         Switch $nMsg
+            Case $hDummyLoadMore
+                _CheckAutoLoadMore()
             Case $GUI_EVENT_CLOSE
+                GUIRegisterMsg($WM_COMMAND, "")
                 GUIDelete($hResultsGui)
+                $hDummyLoadMore = 0
                 $hResultsGui = 0
                 GUISetState(@SW_SHOW, $hCurrentSubGui)
     ControlFocus($hCurrentSubGui, "", $inp_search)
@@ -1291,32 +1314,43 @@ Func _SearchYouTube($sKeyword, $bAppend)
     Local $iFetch = 20
     Local $iEnd = $iStart + $iFetch - 1
 
-    Local $sUrlKeyword = StringReplace($sKeyword, " ", "+")
-    $sUrlKeyword = StringReplace($sUrlKeyword, '"', '%22')
+    Local $sUrlKeyword = _URLEncode($sKeyword)
     Local $sSearchTarget = ""
+    Local $sBaseUrl = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword
 
     Switch $g_sSearchFilter
+        Case "Video"
+            $sSearchTarget = $sBaseUrl & '&sp=EgIQAQ%3D%3D'
         Case "Channels"
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '&sp=EgIQAg%3D%3D'
+            $sSearchTarget = $sBaseUrl & '&sp=EgIQAg%3D%3D'
         Case "Playlist"
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '&sp=EgIQAw%3D%3D'
+            $sSearchTarget = $sBaseUrl & '&sp=EgIQAw%3D%3D'
         Case "lives"
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '&sp=EgJAAQ%3D%3D'
+            $sSearchTarget = $sBaseUrl & '&sp=EgJAAQ%3D%3D'
         Case "Shorts"
-            ; Combine "shorts" keyword with "Short duration (< 4 min)" filter for best results
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '+shorts&sp=EgIYAQ%3D%3D'
+            Local $sShortsKeyword = $sKeyword
+            If Not StringInStr(StringLower($sKeyword), "shorts") Then $sShortsKeyword &= " shorts"
+            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & _URLEncode($sShortsKeyword) & '&sp=EgIYAQ%3D%3D'
+        Case "This Week"
+            $sSearchTarget = $sBaseUrl & '&sp=EgQIAxAB'
+        Case "This Month"
+            $sSearchTarget = $sBaseUrl & '&sp=EgQIBBAB'
+        Case "4K"
+            $sSearchTarget = $sBaseUrl & '&sp=EgJwAQ%3D%3D'
         Case "upload date"
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '&sp=CAI%3D'
+            $sSearchTarget = $sBaseUrl & '&sp=CAI%3D'
         Case "Most viewed"
-            $sSearchTarget = 'https://www.youtube.com/results?search_query=' & $sUrlKeyword & '&sp=CAM%3D'
-        Case Else
+            $sSearchTarget = $sBaseUrl & '&sp=CAM%3D'
+        Case "Rating"
+            $sSearchTarget = $sBaseUrl & '&sp=CAE%3D'
+        Case Else ; No Filter
             $sSearchTarget = "ytsearch" & $iEnd & ":" & $sKeyword
     EndSwitch
 
     ; Use JSON output to ensure all video metadata stays together
     Local $sParams = '--flat-playlist --print-json --playlist-start ' & $iStart & ' --playlist-end ' & $iEnd & ' --no-warnings --encoding utf-8 -- "' & $sSearchTarget & '"'
 
-    Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
+    Local $sFullCmd = '"' & $YT_DLP_PATH & '" ' & $sParams
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
 
     Local $bData = Binary("")
@@ -1481,6 +1515,7 @@ Func _SearchYouTube($sKeyword, $bAppend)
         ReDim $aSearchIds[$iCount]
         ReDim $aSearchTitles[$iCount]
         ReDim $aSearchTypes[$iCount]
+        $iTotalLoaded = $iCount - 1
     EndIf
 
     If $iTotalLoaded = $iLoadedBefore And $bAppend Then
@@ -1816,7 +1851,7 @@ Func _PlayLoop($iCurrentIndex, $bAudioOnly = False)
 
         If $sUrl = "" Then
             ; Nếu lỗi, thử xóa cache yt-dlp một lần rồi báo lỗi chi tiết
-            Local $iPidRM = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" --rm-cache-dir"', @ScriptDir, @SW_HIDE)
+            Local $iPidRM = Run('"' & $YT_DLP_PATH & '" --rm-cache-dir', @ScriptDir, @SW_HIDE)
             While ProcessExists($iPidRM)
                 GUIGetMsg()
                 Sleep(10)
@@ -1940,8 +1975,10 @@ Func _ShowDownloadDialog($sID, $sTitle)
             EndIf
 
             Local $sFinalDownloadPath = $g_sDownloadPath
-            If StringRight($sFinalDownloadPath, 1) <> "\" Then $sFinalDownloadPath &= "\"
-            Local $iPidDLNow = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "' & $sFinalDownloadPath & $sOutTemplate & '" -- "' & $sUrl & '""', @ScriptDir, @SW_SHOW)
+            If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
+            Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
+            Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & $sOutTemplate & '" -- "' & $sUrl & '"'
+            Local $iPidDLNow = Run($sCmd, @ScriptDir, @SW_SHOW)
             While ProcessExists($iPidDLNow)
                 Local $mDL = GUIGetMsg()
                 If $mDL = $GUI_EVENT_CLOSE Then
@@ -4555,7 +4592,7 @@ Func _ShowPlaylistVideos($sPlaylistID, $sPlaylistTitle)
 
     ; 2. Tải danh sách video bằng yt-dlp - Đưa I: xuống cuối để đảm bảo T và D đã có trước khi Add
     Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "I:%(id)s" --no-warnings --encoding utf-8 -- "' & $sPlaylistID & '"'
-    Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
+    Local $sFullCmd = '"' & $YT_DLP_PATH & '" ' & $sParams
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
 
     Local $bData = Binary("")
@@ -4684,7 +4721,7 @@ Func _ShowChannelVideos($sChannelID, $sChannelTitle)
     If StringLeft($sChannelID, 1) = "@" Then $sUrl = "https://www.youtube.com/" & $sChannelID & "/videos"
 
     Local $sParams = '--flat-playlist --print "T:%(title)s" --print "D:%(duration_string)s" --print "I:%(id)s" --no-warnings --encoding utf-8 -- "' & $sUrl & '"'
-    Local $sFullCmd = @ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sParams & '"'
+    Local $sFullCmd = '"' & $YT_DLP_PATH & '" ' & $sParams
     Local $iPID = Run($sFullCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD + $STDERR_CHILD)
 
     Local $bData = Binary("")
@@ -5236,11 +5273,13 @@ Func _DownloadCollection($sColName)
     EndIf
 
     Local $sFinalDownloadPath = $g_sDownloadPath
-    If StringRight($sFinalDownloadPath, 1) <> "\" Then $sFinalDownloadPath &= "\"
+    If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
+    Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
     
     For $i = 1 To UBound($aLinks) - 1
         _NVDA_Speak("Downloading item " & $i & " of " & (UBound($aLinks) - 1))
-        Local $iPid = Run(@ComSpec & ' /c ""' & $YT_DLP_PATH & '" ' & $sFmt & ' -o "' & $sFinalDownloadPath & '%(title)s.%(ext)s" -- "' & $aLinks[$i] & '""', @ScriptDir, @SW_SHOW)
+        Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & '%(title)s.%(ext)s" -- "' & $aLinks[$i] & '"'
+        Local $iPid = Run($sCmd, @ScriptDir, @SW_SHOW)
         While ProcessExists($iPid)
             If GUIGetMsg() = $GUI_EVENT_CLOSE Then
                 ProcessClose($iPid)
@@ -5506,8 +5545,6 @@ Func _IsUrlMatchTab($sUrl, $iTab)
             Return StringInStr($sUrl, "instagram.com")
         Case 4 ; SoundCloud
             Return StringInStr($sUrl, "soundcloud.com")
-        Case 5 ; Telegram
-            Return StringInStr($sUrl, "t.me")
     EndSwitch
     Return False
 EndFunc
