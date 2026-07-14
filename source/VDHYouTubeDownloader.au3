@@ -228,7 +228,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "2.1"
+Global $version = "2.2"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -822,6 +822,7 @@ Func _ShowDownloader()
                         Sleep(1)
                     WEnd
                     GUICtrlSetState($btn_start_dl, $GUI_ENABLE)
+SoundPlay(@ScriptDir & "\sounds\download_finish.wav")
                     MsgBox(64, "Info", "Download Complete!")
                 EndIf
         EndSwitch
@@ -1987,6 +1988,7 @@ Func _ShowDownloadDialog($sID, $sTitle)
                 EndIf
                 Sleep(1)
             WEnd
+SoundPlay(@ScriptDir & "\sounds\download_finish.wav")
             MsgBox(64, "Info", "Download Complete!")
             ExitLoop
         EndIf
@@ -5288,6 +5290,7 @@ Func _DownloadCollection($sColName)
             Sleep(10)
         WEnd
     Next
+SoundPlay(@ScriptDir & "\sounds\download_finish.wav")
     MsgBox(64, "Success", "Collection download complete!")
 EndFunc
 
