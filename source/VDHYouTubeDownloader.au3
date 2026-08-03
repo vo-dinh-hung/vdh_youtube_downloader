@@ -373,6 +373,7 @@ Global $g_bAutoPlay = IniRead($CONFIG_FILE, "Settings", "AutoPlay", "false") == 
 Global $g_bRepeat = IniRead($CONFIG_FILE, "Settings", "Repeat", "false") == "true"
 Global $g_sSearchFilter = IniRead($CONFIG_FILE, "Settings", "SearchFilter", "No Filter")
 Global $g_sDownloadPath = IniRead($CONFIG_FILE, "Settings", "DownloadPath", @ScriptDir & "\download")
+If StringStripWS($g_sDownloadPath, 3) = "" Then $g_sDownloadPath = @ScriptDir & "\download"
 Global $PLAYBACK_POSITIONS_FILE = $SETTINGS_DIR & "\playback_positions.dat"
 Global $g_bContinueWatching = IniRead($CONFIG_FILE, "Settings", "ContinueWatching", "true") == "true"
 $g_iFFStep = Int(IniRead($CONFIG_FILE, "Settings", "FFStep", "5"))
@@ -749,6 +750,10 @@ Func _ShowDownloader()
                 EndIf
 
             Case $openbtn
+                If StringStripWS($g_sDownloadPath, 3) = "" Or Not FileExists($g_sDownloadPath) Then
+                    $g_sDownloadPath = @ScriptDir & "\download"
+                    If Not FileExists($g_sDownloadPath) Then DirCreate($g_sDownloadPath)
+                EndIf
                 ShellExecute($g_sDownloadPath)
 
             Case $btn_start_dl
@@ -805,9 +810,12 @@ Func _ShowDownloader()
 
                     GUICtrlSetState($btn_start_dl, $GUI_DISABLE)
                     Local $sFinalDownloadPath = $g_sDownloadPath
-                    If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
-                    Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
-                    Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' ' & $sExtraArgs & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & $sOutTemplate & '" -- "' & $url & '"'
+                    If StringStripWS($sFinalDownloadPath, 3) = "" Then $sFinalDownloadPath = @ScriptDir & "\download"
+                    If Not FileExists($sFinalDownloadPath) Then DirCreate($sFinalDownloadPath)
+                    While StringRight($sFinalDownloadPath, 1) = "\" Or StringRight($sFinalDownloadPath, 1) = "/"
+                        $sFinalDownloadPath = StringTrimRight($sFinalDownloadPath, 1)
+                    WEnd
+                    Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' ' & $sExtraArgs & ' -P "' & $sFinalDownloadPath & '" --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sOutTemplate & '" -- "' & $url & '"'
                     Local $iPidDL = Run($sCmd, @ScriptDir, @SW_SHOW)
                     While ProcessExists($iPidDL)
                         Local $m = GUIGetMsg()
@@ -1976,9 +1984,12 @@ Func _ShowDownloadDialog($sID, $sTitle)
             EndIf
 
             Local $sFinalDownloadPath = $g_sDownloadPath
-            If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
-            Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
-            Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & $sOutTemplate & '" -- "' & $sUrl & '"'
+            If StringStripWS($sFinalDownloadPath, 3) = "" Then $sFinalDownloadPath = @ScriptDir & "\download"
+            If Not FileExists($sFinalDownloadPath) Then DirCreate($sFinalDownloadPath)
+            While StringRight($sFinalDownloadPath, 1) = "\" Or StringRight($sFinalDownloadPath, 1) = "/"
+                $sFinalDownloadPath = StringTrimRight($sFinalDownloadPath, 1)
+            WEnd
+            Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' -P "' & $sFinalDownloadPath & '" --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sOutTemplate & '" -- "' & $sUrl & '"'
             Local $iPidDLNow = Run($sCmd, @ScriptDir, @SW_SHOW)
             While ProcessExists($iPidDLNow)
                 Local $mDL = GUIGetMsg()
@@ -2872,7 +2883,8 @@ Func _SaveSelection($sUrl, $sTitle)
 
     ; Redesigned Save Selection: Use FileSaveDialog to let user choose name, type and path
     Local $sFilter = "Video MP4 (*.mp4)|Video WebM (*.webm)|MP3 Audio (*.mp3)|M4A Audio (*.m4a)|WAV Audio (*.wav)|FLAC Audio (*.flac)|Ogg Audio (*.ogg)|All Files (*.*)"
-    Local $sInitialDir = @ScriptDir & "\download"
+    Local $sInitialDir = $g_sDownloadPath
+    If StringStripWS($sInitialDir, 3) = "" Or Not FileExists($sInitialDir) Then $sInitialDir = @ScriptDir & "\download"
     If Not FileExists($sInitialDir) Then DirCreate($sInitialDir)
 
     Local $sFilePath = FileSaveDialog("Save selection as...", $sInitialDir, $sFilter, 18, $sSafeTitle & ".mp4", $hPlayGui)
@@ -4253,9 +4265,10 @@ Func _ShowSettings()
     GUICtrlSetFont(-1, 10, 800)
     GUICtrlSetColor(-1, 0xFFFFFF)
 
+    Local $sTempDLPath = $g_sDownloadPath
     GUICtrlCreateLabel("Download Folder:", 30, 80, 380, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
-    Local $inp_DownloadPath = GUICtrlCreateEdit($g_sDownloadPath, 30, 105, 380, 60, BitOR($ES_READONLY, $WS_TABSTOP))
+    Local $inp_DownloadPath = GUICtrlCreateEdit($sTempDLPath, 30, 105, 380, 60, BitOR($ES_READONLY, $WS_TABSTOP))
     _AllowUIPI($inp_DownloadPath) ; Ensure screen reader access
     ; Subclass to prevent manual typing if needed, but standard edit is better for accessibility.
     ; We'll just leave it as standard edit so screen readers can read it easily.
@@ -4373,11 +4386,16 @@ Func _ShowSettings()
                 EndIf
 
             Case $btn_ChangePath
-                Local $sNewPath = FileSelectFolder("Select Download Folder", "", 1, $g_sDownloadPath, $g_hSettingsGui)
-                If Not @error Then
-                    $g_sDownloadPath = $sNewPath
-                    GUICtrlSetData($inp_DownloadPath, $g_sDownloadPath)
+                Local $sNewPath = FileSelectFolder("Select Download Folder", "", 1, $sTempDLPath, $g_hSettingsGui)
+                If Not @error And $sNewPath <> "" Then
+                    $sTempDLPath = $sNewPath
+                    GUICtrlSetData($inp_DownloadPath, $sTempDLPath)
                 EndIf
+
+            Case $btn_ResetPath
+                $sTempDLPath = @ScriptDir & "\download"
+                If Not FileExists($sTempDLPath) Then DirCreate($sTempDLPath)
+                GUICtrlSetData($inp_DownloadPath, $sTempDLPath)
 
             Case $btn_Save
                 ; Read checkbox states
@@ -4423,7 +4441,11 @@ Func _ShowSettings()
                 IniWrite($CONFIG_FILE, "Settings", "Repeat", $g_bRepeat ? "true" : "false")
                 IniWrite($CONFIG_FILE, "Settings", "AfterVideoAction", String($g_iAfterVideoAction))
                 IniWrite($CONFIG_FILE, "Settings", "SearchFilter", $g_sSearchFilter)
-                IniWrite($CONFIG_FILE, "Settings", "DownloadPath", $g_sDownloadPath)
+                If StringStripWS($sTempDLPath, 3) <> "" Then
+                    $g_sDownloadPath = $sTempDLPath
+                    If Not FileExists($g_sDownloadPath) Then DirCreate($g_sDownloadPath)
+                    IniWrite($CONFIG_FILE, "Settings", "DownloadPath", $g_sDownloadPath)
+                EndIf
                 IniWrite($CONFIG_FILE, "Settings", "FFStep", String($g_iFFStep))
                 IniWrite($CONFIG_FILE, "Settings", "RWStep", String($g_iRWStep))
                 IniWrite($CONFIG_FILE, "Settings", "TypingSoundEnabled", $g_bTypingSoundEnabled ? "true" : "false")
@@ -5275,12 +5297,15 @@ Func _DownloadCollection($sColName)
     EndIf
 
     Local $sFinalDownloadPath = $g_sDownloadPath
-    If StringRight($sFinalDownloadPath, 1) <> "\" And StringRight($sFinalDownloadPath, 1) <> "/" Then $sFinalDownloadPath &= "\"
-    Local $sSafePath = StringReplace($sFinalDownloadPath, "\", "/")
+    If StringStripWS($sFinalDownloadPath, 3) = "" Then $sFinalDownloadPath = @ScriptDir & "\download"
+    If Not FileExists($sFinalDownloadPath) Then DirCreate($sFinalDownloadPath)
+    While StringRight($sFinalDownloadPath, 1) = "\" Or StringRight($sFinalDownloadPath, 1) = "/"
+        $sFinalDownloadPath = StringTrimRight($sFinalDownloadPath, 1)
+    WEnd
     
     For $i = 1 To UBound($aLinks) - 1
         _NVDA_Speak("Downloading item " & $i & " of " & (UBound($aLinks) - 1))
-        Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sSafePath & '%(title)s.%(ext)s" -- "' & $aLinks[$i] & '"'
+        Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' -P "' & $sFinalDownloadPath & '" --ffmpeg-location "' & @ScriptDir & '\lib" -o "%(title)s.%(ext)s" -- "' & $aLinks[$i] & '"'
         Local $iPid = Run($sCmd, @ScriptDir, @SW_SHOW)
         While ProcessExists($iPid)
             If GUIGetMsg() = $GUI_EVENT_CLOSE Then

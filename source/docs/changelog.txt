@@ -1,6 +1,11 @@
+changes for version 2.3
+- fix bug:
+  - The error of not finding files after downloading has been resolved due to some complicated technology causing this problem.
+
 changes for version 2.2
 - update yt-dlp to version 2026.07.04
 - add new sounds when download complete.
+
 changes for version 2.1
 - new feature:
   - Now the old configuration will still be preserved when updating.
