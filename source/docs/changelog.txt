@@ -1,3 +1,9 @@
+changes for version 2.4
+- new feature:
+  - add spotify tab in download from link.
+- fix bug:
+  - fix some bug in application.
+
 changes for version 2.3
 - fix bug:
   - The error of not finding files after downloading has been resolved due to some complicated technology causing this problem.

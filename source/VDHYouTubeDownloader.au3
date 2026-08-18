@@ -228,7 +228,7 @@ For $iMsg In $aGlobalMsgs
     DllCall("user32.dll", "bool", "ChangeWindowMessageFilter", "uint", $iMsg, "dword", 1)
 Next
 
-Global $version = "2.2"
+Global $version = "2.4"
 Global $YT_DLP_PATH = @ScriptDir & "\lib\yt-dlp.exe"
 Global $FFMPEG_PATH = @ScriptDir & "\lib\ffmpeg.exe"
 Global $DESC_EXE_PATH = @ScriptDir & "\lib\description.exe"
@@ -639,22 +639,22 @@ Func _ShowDownloader()
     GUISetBkColor($COLOR_BLUE)
 
     $g_hTabDL = GUICtrlCreateTab(10, 10, 380, 40)
-    Local $aTabNames[5] = ["YouTube", "Facebook", "TikTok", "Instagram", "SoundCloud"]
-    Local $aTabItems[5]
-    Local $g_aInpLinks[5]
-    For $i = 0 To 4
+    Local $aTabNames[6] = ["YouTube", "Facebook", "TikTok", "Instagram", "SoundCloud", "Spotify"]
+    Local $aTabItems[6]
+    Local $g_aInpLinks[6]
+    For $i = 0 To 5
         $aTabItems[$i] = GUICtrlCreateTabItem($aTabNames[$i])
         GUICtrlCreateLabel("Enter the " & $aTabNames[$i] & " URL link here:", 10, 60, 380, 20)
         GUICtrlSetColor(-1, 0xFFFFFF)
         $g_aInpLinks[$i] = GUICtrlCreateInput("", 10, 85, 380, 20)
-        GUICtrlSetTip(-1, "Enter the " & $aTabNames[$i] & " video URL here")
+        GUICtrlSetTip(-1, "Enter the " & $aTabNames[$i] & " track/video URL here")
         _AllowUIPI($g_aInpLinks[$i])
     Next
     GUICtrlCreateTabItem("") ; end tab
 
     Local $clip = ClipGet()
     Local $iDetectedTab = -1
-    For $i = 0 To 4
+    For $i = 0 To 5
         If _IsUrlMatchTab($clip, $i) Then
             $iDetectedTab = $i
             ExitLoop
@@ -680,7 +680,7 @@ Func _ShowDownloader()
     GUICtrlSetColor(-1, 0xFFFFFF)
     $cbo_dl_bitrate = GUICtrlCreateCombo("320 kbps", 210, 140, 180, 20, $CBS_DROPDOWNLIST)
     GUICtrlSetTip(-1, "Use Arrow keys to select bitrate")
-    GUICtrlSetData(-1, "256 kbps|192 kbps|128 kbps")
+    GUICtrlSetData(-1, "320 kbps|256 kbps|192 kbps|128 kbps")
 
     Local $chk_custom_name = GUICtrlCreateCheckbox("Choose custom output filename composition", 10, 170, 380, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
@@ -762,15 +762,35 @@ Func _ShowDownloader()
                 If $url = "" Then
                     MsgBox(16, "Error", "Please enter the URL!")
                 Else
-                    Local $iCurTab = _GUICtrlTab_GetCurSel(GUICtrlGetHandle($g_hTabDL))
                     If Not _IsUrlMatchTab($url, $iCurTab) Then
                         Local $sTabName = _GUICtrlTab_GetItemText(GUICtrlGetHandle($g_hTabDL), $iCurTab)
                         MsgBox(16, "Error", "The current link is not supported in the " & $sTabName & " tab. Please switch to the correct tab or use a valid link.")
                         ContinueLoop
                     EndIf
 
+                    ; Spotify streams are DRM-protected and cannot be fetched by yt-dlp directly.
+                    ; We resolve the track's title/artist from Spotify's public oEmbed data, then
+                    ; let yt-dlp search YouTube for a matching audio track and download that instead.
+                    Local $bIsSpotify = ($iCurTab = 5)
+                    Local $sSpotifySearchTarget = ""
+                    If $bIsSpotify Then
+                        If Not _IsSpotifyTrackUrl($url) Then
+                            MsgBox(16, "Error", "Only single Spotify track links are supported (open.spotify.com/track/...)." & @CRLF & "Playlist and album links cannot be resolved automatically.")
+                            ContinueLoop
+                        EndIf
+                        Local $sQuery = _GetSpotifyTrackQuery($url)
+                        If $sQuery = "" Then
+                            MsgBox(16, "Error", "Could not read the Spotify track info. Please check your internet connection or the link, then try again.")
+                            ContinueLoop
+                        EndIf
+                        $sSpotifySearchTarget = "ytsearch1:" & $sQuery & " audio"
+                    EndIf
+
                     Local $sTxt = GUICtrlRead($cbo_dl_format)
                     Local $sFmt = ""
+                    If $bIsSpotify And Not StringInStr($sTxt, "MP3") And Not StringInStr($sTxt, "WAV") And Not StringInStr($sTxt, "M4A") And Not StringInStr($sTxt, "OGG") Then
+                        $sTxt = "Audio MP3" ; Spotify content is audio-only; ignore a video format selection
+                    EndIf
 
                     If StringInStr($sTxt, "MP3") Then
                         $sFmt = "-x --audio-format mp3"
@@ -792,9 +812,10 @@ Func _ShowDownloader()
             EndIf
 
                     Local $sExtraArgs = ""
-                    If StringInStr($url, "watch?v=") And StringInStr($url, "list=") Then
+                    If Not $bIsSpotify And StringInStr($url, "watch?v=") And StringInStr($url, "list=") Then
                         $sExtraArgs = " --no-playlist"
                     EndIf
+                    If $bIsSpotify Then $sExtraArgs &= " --no-playlist --default-search ytsearch"
 
                     Local $sOutTemplate = "%(title)s.%(ext)s"
                     If GUICtrlRead($chk_custom_name) = $GUI_CHECKED Then
@@ -815,7 +836,8 @@ Func _ShowDownloader()
                     While StringRight($sFinalDownloadPath, 1) = "\" Or StringRight($sFinalDownloadPath, 1) = "/"
                         $sFinalDownloadPath = StringTrimRight($sFinalDownloadPath, 1)
                     WEnd
-                    Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' ' & $sExtraArgs & ' -P "' & $sFinalDownloadPath & '" --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sOutTemplate & '" -- "' & $url & '"'
+                    Local $sDLTarget = $bIsSpotify ? $sSpotifySearchTarget : $url
+                    Local $sCmd = '"' & $YT_DLP_PATH & '" ' & $sFmt & ' ' & $sExtraArgs & ' -P "' & $sFinalDownloadPath & '" --ffmpeg-location "' & @ScriptDir & '\lib" -o "' & $sOutTemplate & '" -- "' & $sDLTarget & '"'
                     Local $iPidDL = Run($sCmd, @ScriptDir, @SW_SHOW)
                     While ProcessExists($iPidDL)
                         Local $m = GUIGetMsg()
@@ -1919,7 +1941,7 @@ Func _ShowDownloadDialog($sID, $sTitle)
     GUICtrlSetColor(-1, 0xFFFFFF)
     Local $cbo_dl_bitrate_local = GUICtrlCreateCombo("320 kbps", 210, 45, 180, 20, $CBS_DROPDOWNLIST)
     GUICtrlSetTip(-1, "Use Arrow keys to select bitrate")
-    GUICtrlSetData(-1, "256 kbps|192 kbps|128 kbps")
+    GUICtrlSetData(-1, "320 kbps|256 kbps|192 kbps|128 kbps")
 
     Local $chk_custom_name = GUICtrlCreateCheckbox("Choose custom output filename composition", 10, 80, 380, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
@@ -5248,7 +5270,7 @@ Func _DownloadCollection($sColName)
     GUICtrlCreateLabel("Select Bitrate:", 210, 20, 180, 20)
     GUICtrlSetColor(-1, 0xFFFFFF)
     Local $cboBitrate = GUICtrlCreateCombo("320 kbps", 210, 45, 180, 20, $CBS_DROPDOWNLIST)
-    GUICtrlSetData(-1, "256 kbps|192 kbps|128 kbps")
+    GUICtrlSetData(-1, "320 kbps|256 kbps|192 kbps|128 kbps")
 
     Local $btn_Start = GUICtrlCreateButton("Start Download", 10, 100, 380, 40)
     GUICtrlSetState(-1, $GUI_DEFBUTTON)
@@ -5573,6 +5595,80 @@ Func _IsUrlMatchTab($sUrl, $iTab)
             Return StringInStr($sUrl, "instagram.com")
         Case 4 ; SoundCloud
             Return StringInStr($sUrl, "soundcloud.com")
+        Case 5 ; Spotify
+            Return StringInStr($sUrl, "open.spotify.com") Or StringInStr($sUrl, "spotify.link")
     EndSwitch
     Return False
+EndFunc
+
+; --- Spotify support -------------------------------------------------------
+; Spotify streams are DRM-protected, so yt-dlp cannot download audio directly
+; from open.spotify.com links. Instead, we read the track's public metadata
+; (title/artist) from Spotify's oEmbed endpoint - no API key needed - and then
+; have yt-dlp search YouTube for the best matching audio track and download that.
+; Only single-track links (open.spotify.com/track/...) are supported; playlists
+; and albums are rejected with a clear message since they need many separate
+; track lookups.
+
+Func _IsSpotifyTrackUrl($sUrl)
+    Return StringInStr($sUrl, "open.spotify.com") And StringInStr($sUrl, "/track/") > 0
+EndFunc
+
+; Fetches "<Track Title> <Artist Name>" for a Spotify track link, or "" on failure.
+Func _GetSpotifyTrackQuery($sUrl)
+    If Not _IsSpotifyTrackUrl($sUrl) Then Return ""
+
+    Local $sOEmbedUrl = "https://open.spotify.com/oembed?url=" & _URLEncode($sUrl)
+    Local $sJson = _HttpGet($sOEmbedUrl)
+    If $sJson = "" Then Return ""
+
+    ; oEmbed JSON contains: "title":"Track Name" and usually
+    ; "author_name":"Artist Name" (or embedded inside the "html"/"iframe" title)
+    Local $sTitle = ""
+    Local $aTitle = StringRegExp($sJson, '"title"\s*:\s*"(.-[^\\])"', 1)
+    If Not @error And UBound($aTitle) > 0 Then $sTitle = _JsonUnescape($aTitle[0])
+
+    Local $sAuthor = ""
+    Local $aAuthor = StringRegExp($sJson, '"author_name"\s*:\s*"(.-[^\\])"', 1)
+    If Not @error And UBound($aAuthor) > 0 Then $sAuthor = _JsonUnescape($aAuthor[0])
+
+    If $sTitle = "" Then Return ""
+    If $sAuthor <> "" Then Return $sTitle & " " & $sAuthor
+    Return $sTitle
+EndFunc
+
+Func _JsonUnescape($s)
+    $s = StringReplace($s, '\/', '/')
+    $s = StringReplace($s, '\"', '"')
+    $s = StringReplace($s, '\\', '\')
+    Return $s
+EndFunc
+
+; Simple blocking HTTP GET using WinHTTP (avoids extra dependencies), returns "" on error.
+Func _HttpGet($sUrl)
+    Local $oHTTP = ObjCreate("WinHttp.WinHttpRequest.5.1")
+    If Not IsObj($oHTTP) Then Return ""
+    Local $sResult = ""
+    Local $bError = False
+    $oHTTP.Open("GET", $sUrl, False)
+    $oHTTP.SetRequestHeader("User-Agent", "Mozilla/5.0")
+    $oHTTP.SetTimeouts(5000, 5000, 8000, 8000)
+    ; Trap runtime errors from the COM call instead of crashing the app
+    Local $oErrHandler = ObjEvent("AutoIt.Error", "_HttpGet_ErrHandler")
+    $oHTTP.Send()
+    If @error Then $bError = True
+    If Not $bError Then
+        If $oHTTP.Status = 200 Then
+            $sResult = $oHTTP.ResponseText
+        Else
+            $bError = True
+        EndIf
+    EndIf
+    $oErrHandler = 0
+    If $bError Then Return ""
+    Return $sResult
+EndFunc
+
+Func _HttpGet_ErrHandler()
+    ; Swallow COM errors, handled by the @error check in _HttpGet
 EndFunc
